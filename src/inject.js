@@ -11,6 +11,7 @@
   let originalWebSocket = window.WebSocket;
   let activeConnections = new Set();
   let currentState = "connected";
+  let ideTabInjected = false;
 
   function createStatusIndicator() {
     if (statusIndicator) return statusIndicator;
@@ -98,6 +99,204 @@
     }
   }
 
+  // ==================== IDE Sidebar Injection ====================
+
+  function createIdeTab() {
+    const tab = document.createElement("a");
+    tab.id = "better-gateway-ide-tab";
+    tab.href = "/better-gateway/ide";
+    tab.className = "sidebar-item ide-tab";
+    tab.title = "Open IDE - Code Editor";
+    tab.innerHTML = `
+      <span class="sidebar-icon">⚡</span>
+      <span class="sidebar-label">IDE</span>
+    `;
+    
+    tab.style.cssText = `
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 10px 16px;
+      color: #00d4ff;
+      text-decoration: none;
+      cursor: pointer;
+      border-radius: 6px;
+      margin: 4px 8px;
+      font-size: 14px;
+      font-weight: 500;
+      transition: all 0.2s ease;
+      background: linear-gradient(135deg, rgba(0, 212, 255, 0.1) 0%, rgba(0, 212, 255, 0.05) 100%);
+      border: 1px solid rgba(0, 212, 255, 0.2);
+    `;
+
+    tab.addEventListener("mouseenter", function () {
+      tab.style.background = "linear-gradient(135deg, rgba(0, 212, 255, 0.2) 0%, rgba(0, 212, 255, 0.1) 100%)";
+      tab.style.borderColor = "rgba(0, 212, 255, 0.4)";
+      tab.style.transform = "translateX(2px)";
+    });
+
+    tab.addEventListener("mouseleave", function () {
+      tab.style.background = "linear-gradient(135deg, rgba(0, 212, 255, 0.1) 0%, rgba(0, 212, 255, 0.05) 100%)";
+      tab.style.borderColor = "rgba(0, 212, 255, 0.2)";
+      tab.style.transform = "translateX(0)";
+    });
+
+    // Icon styling
+    const icon = tab.querySelector(".sidebar-icon");
+    if (icon) {
+      icon.style.cssText = `
+        font-size: 16px;
+        width: 20px;
+        text-align: center;
+      `;
+    }
+
+    return tab;
+  }
+
+  function findSidebarContainer() {
+    // Try various selectors that might match the gateway sidebar
+    const selectors = [
+      // Common sidebar patterns
+      ".sidebar",
+      ".sidebar-nav",
+      ".side-nav",
+      "[class*='sidebar']",
+      "nav[class*='nav']",
+      // Gateway-specific patterns
+      ".app-sidebar",
+      ".main-sidebar",
+      "#sidebar",
+      "aside",
+      // Fallback - look for vertical nav structures
+      "[role='navigation']",
+    ];
+
+    for (const selector of selectors) {
+      const element = document.querySelector(selector);
+      if (element && isLikelySidebar(element)) {
+        return element;
+      }
+    }
+
+    // Last resort: find any nav-like vertical element
+    const navs = document.querySelectorAll("nav, aside, [class*='nav']");
+    for (const nav of navs) {
+      if (isLikelySidebar(nav)) {
+        return nav;
+      }
+    }
+
+    return null;
+  }
+
+  function isLikelySidebar(element) {
+    // Check if element looks like a sidebar
+    if (!element) return false;
+    
+    try {
+      const style = window.getComputedStyle(element);
+      const isVisible = style.display !== "none" && style.visibility !== "hidden";
+      
+      // If we can get bounding rect, use it for more precise detection
+      if (typeof element.getBoundingClientRect === "function") {
+        const rect = element.getBoundingClientRect();
+        // Sidebar characteristics:
+        // - Usually on the left side of the page
+        // - Relatively narrow (< 400px)
+        // - Has some height
+        const isLeftSide = rect.left < (window.innerWidth || 1024) / 2;
+        const isNarrow = rect.width < 400 || rect.width === 0; // 0 in jsdom
+        const hasSomeHeight = rect.height > 50 || rect.height === 0; // 0 in jsdom
+        
+        return isVisible && (rect.width === 0 || (isLeftSide && isNarrow && hasSomeHeight));
+      }
+      
+      // Fallback: just check visibility
+      return isVisible;
+    } catch (e) {
+      // If any error, assume it's a sidebar if it exists
+      return true;
+    }
+  }
+
+  function injectIdeTab() {
+    if (ideTabInjected) return false;
+    
+    // Don't inject on the IDE page itself
+    if (window.location.pathname === "/better-gateway/ide") {
+      return false;
+    }
+
+    const sidebar = findSidebarContainer();
+    if (!sidebar) {
+      return false;
+    }
+
+    // Check if already injected
+    if (document.getElementById("better-gateway-ide-tab")) {
+      ideTabInjected = true;
+      return false;
+    }
+
+    const ideTab = createIdeTab();
+    
+    // Try to find a good insertion point
+    // Look for existing nav items to insert after, or append to end
+    const existingItems = sidebar.querySelectorAll("a, button, [class*='item'], [class*='link']");
+    
+    if (existingItems.length > 0) {
+      // Insert after the last item
+      const lastItem = existingItems[existingItems.length - 1];
+      // Create a separator if there are other items
+      const separator = document.createElement("div");
+      separator.className = "better-gateway-separator";
+      separator.style.cssText = `
+        height: 1px;
+        background: rgba(255, 255, 255, 0.1);
+        margin: 8px 16px;
+      `;
+      
+      if (lastItem.parentNode === sidebar) {
+        sidebar.appendChild(separator);
+        sidebar.appendChild(ideTab);
+      } else {
+        // Items might be nested, try to find the right container
+        const container = lastItem.closest("ul, div, nav") || sidebar;
+        container.appendChild(separator);
+        container.appendChild(ideTab);
+      }
+    } else {
+      sidebar.appendChild(ideTab);
+    }
+
+    ideTabInjected = true;
+    console.log("[BetterGateway] IDE tab injected into sidebar");
+    return true;
+  }
+
+  function tryInjectIdeTab() {
+    // Try immediately
+    if (injectIdeTab()) return;
+
+    // Retry with MutationObserver for dynamic sidebars
+    const observer = new MutationObserver(function (mutations, obs) {
+      if (injectIdeTab()) {
+        obs.disconnect();
+      }
+    });
+
+    observer.observe(document.body, {
+      childList: true,
+      subtree: true,
+    });
+
+    // Give up after 10 seconds
+    setTimeout(function () {
+      observer.disconnect();
+    }, 10000);
+  }
+
   function wrapWebSocket(OriginalWebSocket) {
     function BetterWebSocket(url, protocols) {
       const ws = new OriginalWebSocket(url, protocols);
@@ -155,9 +354,11 @@
   if (document.readyState === "loading") {
     document.addEventListener("DOMContentLoaded", function () {
       updateStatus("connected", "Ready");
+      tryInjectIdeTab();
     });
   } else {
     updateStatus("connected", "Ready");
+    tryInjectIdeTab();
   }
 
   window.addEventListener("online", function () {

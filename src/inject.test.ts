@@ -280,4 +280,121 @@ describe("inject.js - WebSocket auto-reconnect", () => {
       expect(indicator?.innerHTML).toContain("Offline");
     });
   });
+
+  describe("IDE sidebar injection", () => {
+    it("should not inject IDE tab when no sidebar exists", () => {
+      window.eval(injectScript);
+      const ideTab = window.document.getElementById("better-gateway-ide-tab");
+      expect(ideTab).toBeNull();
+    });
+
+    it("should inject IDE tab when sidebar exists", () => {
+      // Create a mock sidebar
+      const sidebar = window.document.createElement("aside");
+      sidebar.className = "sidebar";
+      sidebar.style.cssText = "position: fixed; left: 0; width: 200px; height: 500px;";
+      window.document.body.appendChild(sidebar);
+      
+      // Add some existing nav items
+      const navItem = window.document.createElement("a");
+      navItem.className = "nav-item";
+      navItem.textContent = "Home";
+      sidebar.appendChild(navItem);
+
+      window.eval(injectScript);
+      
+      const ideTab = window.document.getElementById("better-gateway-ide-tab");
+      expect(ideTab).not.toBeNull();
+      expect(ideTab?.getAttribute("href")).toBe("/better-gateway/ide");
+    });
+
+    it("should create IDE tab with correct structure", () => {
+      const sidebar = window.document.createElement("nav");
+      sidebar.className = "sidebar-nav";
+      sidebar.style.cssText = "position: fixed; left: 0; width: 250px; height: 400px;";
+      window.document.body.appendChild(sidebar);
+
+      window.eval(injectScript);
+      
+      const ideTab = window.document.getElementById("better-gateway-ide-tab");
+      expect(ideTab).not.toBeNull();
+      expect(ideTab?.innerHTML).toContain("IDE");
+      expect(ideTab?.innerHTML).toContain("sidebar-icon");
+      expect(ideTab?.innerHTML).toContain("sidebar-label");
+    });
+
+    it("should add separator before IDE tab when other items exist", () => {
+      const sidebar = window.document.createElement("div");
+      sidebar.className = "sidebar";
+      sidebar.style.cssText = "position: fixed; left: 0; width: 200px; height: 500px;";
+      
+      const existingItem = window.document.createElement("button");
+      existingItem.className = "nav-item";
+      sidebar.appendChild(existingItem);
+      
+      window.document.body.appendChild(sidebar);
+
+      window.eval(injectScript);
+      
+      const separator = window.document.querySelector(".better-gateway-separator");
+      expect(separator).not.toBeNull();
+    });
+
+    it.skip("should not inject IDE tab on the IDE page itself", () => {
+      // SKIP: JSDOM doesn't allow redefining location.pathname
+      // This functionality is tested manually in the browser
+    });
+
+    it("should not inject duplicate IDE tabs", () => {
+      const sidebar = window.document.createElement("aside");
+      sidebar.className = "sidebar";
+      sidebar.style.cssText = "position: fixed; left: 0; width: 200px; height: 500px;";
+      window.document.body.appendChild(sidebar);
+
+      // Inject twice
+      window.eval(injectScript);
+      window.eval(injectScript);
+      
+      const ideTabs = window.document.querySelectorAll("#better-gateway-ide-tab");
+      expect(ideTabs.length).toBe(1);
+    });
+
+    it("should log injection message to console", () => {
+      const consoleSpy = vi.spyOn(window.console, "log");
+      
+      const sidebar = window.document.createElement("aside");
+      sidebar.className = "sidebar";
+      sidebar.style.cssText = "position: fixed; left: 0; width: 200px; height: 500px;";
+      window.document.body.appendChild(sidebar);
+
+      window.eval(injectScript);
+      
+      expect(consoleSpy).toHaveBeenCalledWith("[BetterGateway] IDE tab injected into sidebar");
+    });
+
+    it("should find sidebar with various class names", () => {
+      // Test with .side-nav class
+      const sidebar = window.document.createElement("nav");
+      sidebar.className = "side-nav";
+      sidebar.style.cssText = "position: fixed; left: 0; width: 280px; height: 600px;";
+      window.document.body.appendChild(sidebar);
+
+      window.eval(injectScript);
+      
+      const ideTab = window.document.getElementById("better-gateway-ide-tab");
+      expect(ideTab).not.toBeNull();
+    });
+
+    it("should style IDE tab with correct colors", () => {
+      const sidebar = window.document.createElement("aside");
+      sidebar.className = "sidebar";
+      sidebar.style.cssText = "position: fixed; left: 0; width: 200px; height: 500px;";
+      window.document.body.appendChild(sidebar);
+
+      window.eval(injectScript);
+      
+      const ideTab = window.document.getElementById("better-gateway-ide-tab");
+      expect(ideTab?.style.color).toBe("rgb(0, 212, 255)");
+    });
+  });
 });

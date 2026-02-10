@@ -294,14 +294,41 @@ better-gateway-dev/
 2. [x] Add comprehensive test suite (69 tests) ✅ **DONE**
 3. [x] Add GitHub Actions CI/CD workflow ✅ **DONE**
 4. [x] Create IDE page with Monaco (CDN) ✅ **DONE**
-5. [ ] Implement file tree component
-6. [ ] Basic editor tabs
+5. [x] Implement file tree component ✅ **DONE** (Phase 1)
+   - Collapsible folder structure
+   - File icons by extension  
+   - Click to open in editor
+   - Search/filter files (Ctrl+P)
+   - Auto-expand matching folders during search
+   - Highlight matching text
+6. [x] Basic editor tabs ✅ **DONE** (Phase 1)
+   - Drag to reorder tabs
+   - Middle-click to close
+   - Tab navigation (Ctrl+Tab, Ctrl+Shift+Tab)
+   - Modified indicator
 
 ### Week 2: Gateway Integration
-7. [ ] Inject "IDE" link/tab in gateway sidebar
-8. [ ] Style consistency with gateway UI
-9. [ ] Keyboard shortcuts (Ctrl+S save, etc.)
-10. [ ] localStorage state persistence
+7. [x] Inject "IDE" link/tab in gateway sidebar ✅ **DONE** (Phase 1)
+   - Auto-detects sidebar with multiple selector strategies
+   - Uses MutationObserver for dynamically loaded sidebars
+   - Styled with gateway accent color (#00d4ff)
+   - Links to /better-gateway/ide
+8. [x] Style consistency with gateway UI ✅ **DONE** (Phase 1)
+   - Matches VS Code dark theme (vs-dark)
+   - Uses gateway accent colors
+   - Consistent font families
+9. [x] Keyboard shortcuts (Ctrl+S save, etc.) ✅ **DONE**
+   - Ctrl+S: Save file
+   - Ctrl+B: Toggle sidebar
+   - Ctrl+W: Close tab
+   - Ctrl+P: Quick file search
+   - Ctrl+Tab: Next tab
+   - Ctrl+Shift+Tab: Previous tab
+   - Escape: Clear search / hide context menu
+10. [x] localStorage state persistence ✅ **DONE**
+   - Open tabs persist across refreshes
+   - Active tab remembered
+   - Editor view state (cursor, scroll) preserved
 
 ### Week 3: Chat Integration
 11. [ ] `@file` mention autocomplete

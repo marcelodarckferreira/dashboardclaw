@@ -214,6 +214,31 @@ export function generateIdePage(config: Partial<IdePageConfig> = {}): string {
       color: var(--text-primary);
     }
     
+    /* File Search */
+    #file-search-container {
+      padding: 8px 12px;
+      border-bottom: 1px solid var(--border-color);
+    }
+    
+    #file-search {
+      width: 100%;
+      padding: 6px 10px;
+      background: var(--bg-primary);
+      border: 1px solid var(--border-color);
+      border-radius: 4px;
+      color: var(--text-primary);
+      font-size: 12px;
+      outline: none;
+    }
+    
+    #file-search:focus {
+      border-color: var(--accent);
+    }
+    
+    #file-search::placeholder {
+      color: var(--text-muted);
+    }
+    
     #file-tree {
       flex: 1;
       overflow-y: auto;
@@ -361,6 +386,35 @@ export function generateIdePage(config: Partial<IdePageConfig> = {}): string {
     .tab .close-btn:hover {
       background: var(--bg-active);
       color: var(--text-primary);
+    }
+    
+    .tab.dragging {
+      opacity: 0.5;
+    }
+    
+    .tab.drag-over {
+      border-left: 2px solid var(--accent);
+    }
+    
+    /* Tab scroll buttons */
+    .tab-scroll-btn {
+      background: var(--bg-tertiary);
+      border: none;
+      color: var(--text-secondary);
+      padding: 0 8px;
+      cursor: pointer;
+      height: 100%;
+      font-size: 14px;
+    }
+    
+    .tab-scroll-btn:hover {
+      background: var(--bg-hover);
+      color: var(--text-primary);
+    }
+    
+    .tab-scroll-btn:disabled {
+      opacity: 0.3;
+      cursor: default;
     }
     
     /* Editor Container */
@@ -519,6 +573,9 @@ export function generateIdePage(config: Partial<IdePageConfig> = {}): string {
           <span>Explorer</span>
           <button id="collapse-btn" title="Collapse All">⊟</button>
         </div>
+        <div id="file-search-container">
+          <input type="text" id="file-search" placeholder="Search files... (Ctrl+P)" />
+        </div>
         <div id="file-tree"></div>
       </div>
       
@@ -577,7 +634,11 @@ export function generateIdePage(config: Partial<IdePageConfig> = {}): string {
       sidebar: document.getElementById('sidebar'),
       saveStatus: document.getElementById('save-status'),
       contextMenu: document.getElementById('context-menu'),
+      fileSearch: document.getElementById('file-search'),
     };
+    
+    // Search state
+    let searchQuery = '';
     
     // ==================== File API ====================
     
@@ -678,28 +739,58 @@ export function generateIdePage(config: Partial<IdePageConfig> = {}): string {
       return icons[ext] || '📄';
     }
     
+    function matchesSearch(name, path) {
+      if (!searchQuery) return true;
+      const query = searchQuery.toLowerCase();
+      return name.toLowerCase().includes(query) || path.toLowerCase().includes(query);
+    }
+    
+    function hasMatchingDescendants(node) {
+      if (!searchQuery) return true;
+      if (matchesSearch(node.name, node.path)) return true;
+      if (node.type === 'directory' && node.children) {
+        return Object.values(node.children).some(child => hasMatchingDescendants(child));
+      }
+      return false;
+    }
+    
+    function highlightMatch(text) {
+      if (!searchQuery) return text;
+      const query = searchQuery.toLowerCase();
+      const idx = text.toLowerCase().indexOf(query);
+      if (idx === -1) return text;
+      return text.slice(0, idx) + '<mark style="background: var(--accent); color: var(--bg-primary); padding: 0 2px; border-radius: 2px;">' + text.slice(idx, idx + query.length) + '</mark>' + text.slice(idx + query.length);
+    }
+    
     function renderTree(node, container, depth = 0) {
       const sorted = sortTreeChildren(node.children);
       
       for (const child of sorted) {
+        // Skip items that don't match search (unless they have matching descendants)
+        if (searchQuery && !hasMatchingDescendants(child)) {
+          continue;
+        }
+        
         const item = document.createElement('div');
         item.className = 'tree-item' + (child.type === 'directory' ? ' directory' : '');
         item.style.paddingLeft = (12 + depth * 16) + 'px';
         item.dataset.path = child.path;
         item.dataset.type = child.type;
         
-        const isExpanded = state.expandedDirs.has(child.path);
+        // Auto-expand directories when searching
+        const isExpanded = searchQuery ? true : state.expandedDirs.has(child.path);
+        const displayName = highlightMatch(child.name);
         
         if (child.type === 'directory') {
           item.innerHTML = \`
             <span class="chevron \${isExpanded ? 'expanded' : ''}">▶</span>
             <span class="icon">\${getFileIcon(child.name, child.type)}</span>
-            <span class="name">\${child.name}</span>
+            <span class="name">\${displayName}</span>
           \`;
         } else {
           item.innerHTML = \`
             <span class="icon">\${getFileIcon(child.name, child.type)}</span>
-            <span class="name">\${child.name}</span>
+            <span class="name">\${displayName}</span>
           \`;
         }
         
@@ -753,12 +844,18 @@ export function generateIdePage(config: Partial<IdePageConfig> = {}): string {
     
     // ==================== Tabs ====================
     
+    // Tab drag state
+    let draggedTab = null;
+    
     function renderTabs() {
       elements.tabBar.innerHTML = '';
       
       for (const path of state.openTabs) {
         const tab = document.createElement('button');
         tab.className = 'tab' + (path === state.activeTab ? ' active' : '');
+        tab.draggable = true;
+        tab.dataset.path = path;
+        
         if (state.unsavedChanges.has(path)) {
           tab.classList.add('modified');
         }
@@ -766,14 +863,62 @@ export function generateIdePage(config: Partial<IdePageConfig> = {}): string {
         const name = path.split('/').pop();
         tab.innerHTML = \`
           <span class="tab-name">\${name}</span>
-          <span class="close-btn" title="Close">×</span>
+          <span class="close-btn" title="Close (Ctrl+W)">×</span>
         \`;
         
+        // Click handlers
         tab.addEventListener('click', (e) => {
           if (e.target.classList.contains('close-btn')) {
             closeTab(path);
           } else {
             switchToTab(path);
+          }
+        });
+        
+        // Middle-click to close
+        tab.addEventListener('auxclick', (e) => {
+          if (e.button === 1) { // Middle button
+            e.preventDefault();
+            closeTab(path);
+          }
+        });
+        
+        // Drag and drop for tab reordering
+        tab.addEventListener('dragstart', (e) => {
+          draggedTab = path;
+          tab.classList.add('dragging');
+          e.dataTransfer.effectAllowed = 'move';
+        });
+        
+        tab.addEventListener('dragend', () => {
+          tab.classList.remove('dragging');
+          draggedTab = null;
+          document.querySelectorAll('.tab.drag-over').forEach(t => t.classList.remove('drag-over'));
+        });
+        
+        tab.addEventListener('dragover', (e) => {
+          e.preventDefault();
+          if (draggedTab && draggedTab !== path) {
+            tab.classList.add('drag-over');
+          }
+        });
+        
+        tab.addEventListener('dragleave', () => {
+          tab.classList.remove('drag-over');
+        });
+        
+        tab.addEventListener('drop', (e) => {
+          e.preventDefault();
+          tab.classList.remove('drag-over');
+          if (draggedTab && draggedTab !== path) {
+            // Reorder tabs
+            const fromIdx = state.openTabs.indexOf(draggedTab);
+            const toIdx = state.openTabs.indexOf(path);
+            if (fromIdx !== -1 && toIdx !== -1) {
+              state.openTabs.splice(fromIdx, 1);
+              state.openTabs.splice(toIdx, 0, draggedTab);
+              renderTabs();
+            }
           }
         });
         
@@ -984,9 +1129,63 @@ export function generateIdePage(config: Partial<IdePageConfig> = {}): string {
           }
         }
         
-        // Escape - Hide context menu
+        // Ctrl+P - Focus file search / Quick open
+        if (e.ctrlKey && e.key === 'p') {
+          e.preventDefault();
+          elements.sidebar.classList.remove('collapsed');
+          elements.fileSearch.focus();
+          elements.fileSearch.select();
+        }
+        
+        // Ctrl+Tab - Next tab
+        if (e.ctrlKey && e.key === 'Tab' && !e.shiftKey) {
+          e.preventDefault();
+          if (state.openTabs.length > 1) {
+            const idx = state.openTabs.indexOf(state.activeTab);
+            const nextIdx = (idx + 1) % state.openTabs.length;
+            switchToTab(state.openTabs[nextIdx]);
+          }
+        }
+        
+        // Ctrl+Shift+Tab - Previous tab
+        if (e.ctrlKey && e.shiftKey && e.key === 'Tab') {
+          e.preventDefault();
+          if (state.openTabs.length > 1) {
+            const idx = state.openTabs.indexOf(state.activeTab);
+            const prevIdx = (idx - 1 + state.openTabs.length) % state.openTabs.length;
+            switchToTab(state.openTabs[prevIdx]);
+          }
+        }
+        
+        // Escape - Hide context menu and clear search
         if (e.key === 'Escape') {
           hideContextMenu();
+          if (document.activeElement === elements.fileSearch) {
+            elements.fileSearch.blur();
+            searchQuery = '';
+            elements.fileSearch.value = '';
+            refreshFileTree();
+          }
+        }
+      });
+    }
+    
+    function setupFileSearch() {
+      elements.fileSearch.addEventListener('input', (e) => {
+        searchQuery = e.target.value;
+        refreshFileTree();
+      });
+      
+      elements.fileSearch.addEventListener('keydown', (e) => {
+        // Enter key opens first matching file
+        if (e.key === 'Enter' && searchQuery) {
+          const firstFile = elements.fileTree.querySelector('.tree-item:not(.directory)');
+          if (firstFile) {
+            openFile(firstFile.dataset.path);
+            searchQuery = '';
+            elements.fileSearch.value = '';
+            elements.fileSearch.blur();
+          }
         }
       });
     }
@@ -1056,6 +1255,7 @@ export function generateIdePage(config: Partial<IdePageConfig> = {}): string {
         // Setup UI
         setupKeyboardShortcuts();
         setupResizeHandle();
+        setupFileSearch();
         
         // Context menu handlers
         elements.contextMenu.querySelectorAll('.context-item').forEach(item => {
