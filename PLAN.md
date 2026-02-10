@@ -391,10 +391,29 @@ better-gateway-dev/
 ---
 
 ### Week 3: Chat Integration (Phase 2)
-11. [ ] `@file` mention autocomplete
-12. [ ] File content injection in messages
-13. [ ] Real-time file change updates
-14. [ ] Selection-to-chat flow
+
+**Goal:** Make the IDE Cursor-like with integrated chat sidebar, powered by OpenClaw.
+
+11. [ ] **Integrated chat sidebar on the right**
+    - Split view: file tree (left) | editor (center) | chat (right)
+    - Chat panel connects to OpenClaw gateway WebSocket
+    - Send messages, receive responses in real-time
+    - Resizable panel widths
+    - Toggle chat panel visibility (⌘/Ctrl+Shift+C)
+12. [ ] `@file` mention autocomplete
+    - Type `@` to see file picker
+    - Autocomplete from workspace files
+    - Selected files shown as chips in input
+13. [ ] File content injection in messages
+    - Referenced files included in message context
+    - Show file snippets in chat UI
+14. [ ] Real-time file change updates
+    - When chat/agent edits files, IDE updates
+    - WebSocket events for file changes
+15. [ ] Selection-to-chat flow
+    - Select code in editor → "Ask about selection" button
+    - Selection context auto-included in message
+    - Line numbers preserved
 
 ### Week 4: Polish
 15. [ ] Split view layout
