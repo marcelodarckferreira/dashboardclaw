@@ -233,17 +233,37 @@
     const main = document.querySelector("main.content");
     if (!main) return;
 
-    // Create IDE frame if it doesn't exist
+    // Create or get the split container (flex wrapper for IDE | handle | chat)
+    let splitWrapper = document.getElementById("better-gateway-split-wrapper");
     let ideFrame = document.getElementById("better-gateway-ide-frame");
     let splitHandle = document.getElementById("better-gateway-split-handle");
-    
-    if (!ideFrame) {
+
+    if (!splitWrapper) {
+      // Create wrapper: flex row container that replaces main in the layout
+      splitWrapper = document.createElement("div");
+      splitWrapper.id = "better-gateway-split-wrapper";
+      splitWrapper.style.cssText = `
+        display: flex;
+        flex-direction: row;
+        flex: 1;
+        overflow: hidden;
+        min-width: 0;
+        min-height: 0;
+      `;
       ideFrame = createIdeFrame();
       splitHandle = createSplitResizeHandle();
-      // Insert: [ideFrame] [splitHandle] [main]
-      main.parentNode.insertBefore(splitHandle, main);
-      main.parentNode.insertBefore(ideFrame, splitHandle);
+
+      // Wrap main: replace main with wrapper, put main inside wrapper
+      const parent = main.parentNode;
+      parent.replaceChild(splitWrapper, main);
+      splitWrapper.appendChild(ideFrame);
+      splitWrapper.appendChild(splitHandle);
+      splitWrapper.appendChild(main);
+
       setupSplitResize();
+    } else {
+      ideFrame = document.getElementById("better-gateway-ide-frame");
+      splitHandle = document.getElementById("better-gateway-split-handle");
     }
 
     const chatNav = document.querySelector('.nav-item[href="/chat"]') 
@@ -252,22 +272,25 @@
 
     // Apply the view mode
     if (mode === 'chat') {
-      // Chat only
+      // Chat only - hide IDE, chat takes full width
       ideFrame.style.display = "none";
       splitHandle.style.display = "none";
       main.style.display = "";
-      main.style.flex = "";
+      main.style.flex = "1";
       main.style.width = "";
+      main.style.minWidth = "";
+      main.style.overflow = "";
       
       if (chatNav) chatNav.classList.add("active");
       if (ideNav) ideNav.classList.remove("active");
       
     } else if (mode === 'ide') {
-      // IDE only
+      // IDE only - IDE takes full width
       ideFrame.style.display = "block";
       ideFrame.style.width = "100%";
       ideFrame.style.height = "100%";
       ideFrame.style.flex = "1";
+      ideFrame.style.minWidth = "";
       splitHandle.style.display = "none";
       main.style.display = "none";
       
@@ -275,16 +298,18 @@
       if (ideNav) ideNav.classList.add("active");
       
     } else if (mode === 'split') {
-      // Split view: IDE + Chat side by side
+      // Split view: IDE (left) | handle | Chat (right sidebar)
       ideFrame.style.display = "block";
       ideFrame.style.width = "55%";
       ideFrame.style.height = "100%";
       ideFrame.style.flex = "none";
+      ideFrame.style.minWidth = "280px";
       splitHandle.style.display = "block";
       main.style.display = "";
       main.style.flex = "1";
       main.style.width = "";
       main.style.minWidth = "320px";
+      main.style.overflow = "auto";
       
       // Both nav items get a special state
       if (chatNav) chatNav.classList.add("active");
