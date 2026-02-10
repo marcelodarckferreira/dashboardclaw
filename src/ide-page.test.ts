@@ -63,13 +63,24 @@ describe("IDE Page Generator", () => {
       expect(html).toContain("id=\"tab-bar\"");
     });
 
+    it("should not include embedded IDE chat panel", () => {
+      const html = generateIdePage();
+
+      expect(html).not.toContain('id="chat-panel"');
+      expect(html).not.toContain('id="chat-input"');
+      expect(html).not.toContain('id="chat-send"');
+      expect(html).not.toContain('Ctrl+Shift+C');
+    });
+
     it("should include toolbar with buttons", () => {
       const html = generateIdePage();
       
       expect(html).toContain("id=\"toolbar\"");
       expect(html).toContain("id=\"toggle-sidebar\"");
       expect(html).toContain("id=\"new-file-btn\"");
+      expect(html).toContain("id=\"open-folder-btn\"");
       expect(html).toContain("id=\"refresh-btn\"");
+      expect(html).toContain("id=\"workspace-path\"");
     });
 
     it("should include welcome screen", () => {

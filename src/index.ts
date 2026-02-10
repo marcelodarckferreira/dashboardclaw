@@ -39,14 +39,9 @@ const DEFAULT_CONFIG: PluginConfig = {
   maxFileSize: DEFAULT_MAX_FILE_SIZE,
 };
 
-let injectScript: string | null = null;
-
 function loadInjectScript(): string {
-  if (injectScript === null) {
-    const scriptPath = join(__dirname, "inject.js");
-    injectScript = readFileSync(scriptPath, "utf-8");
-  }
-  return injectScript;
+  const scriptPath = join(__dirname, "inject.js");
+  return readFileSync(scriptPath, "utf-8");
 }
 
 function generateConfigScript(config: PluginConfig): string {

@@ -1,7 +1,6 @@
 /**
  * IDE Page Generator
  * Creates a full-featured code editor interface using Monaco Editor (CDN)
- * With integrated chat sidebar for OpenClaw gateway communication
  */
 
 export interface IdePageConfig {
@@ -153,10 +152,21 @@ export function generateIdePage(config: Partial<IdePageConfig> = {}): string {
       color: var(--text-primary);
     }
     
-    #save-status {
+    #workspace-path {
       margin-left: auto;
       font-size: 12px;
       color: var(--text-muted);
+      max-width: 320px;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    #save-status {
+      font-size: 12px;
+      color: var(--text-muted);
+      min-width: 72px;
+      text-align: right;
     }
     
     #save-status.saving { color: var(--warning); }
@@ -240,6 +250,77 @@ export function generateIdePage(config: Partial<IdePageConfig> = {}): string {
       color: var(--text-muted);
     }
     
+    #open-editors {
+      border-bottom: 1px solid var(--border-color);
+      max-height: 180px;
+      overflow-y: auto;
+      padding: 4px 0;
+    }
+
+    #open-editors-header {
+      padding: 4px 12px;
+      font-size: 10px;
+      font-weight: 600;
+      letter-spacing: 0.5px;
+      text-transform: uppercase;
+      color: var(--text-muted);
+    }
+
+    #open-editors.empty .open-editor-empty {
+      display: block;
+    }
+
+    .open-editor-empty {
+      display: none;
+      padding: 4px 12px 8px 12px;
+      font-size: 12px;
+      color: var(--text-muted);
+    }
+
+    .open-editor-item {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 4px 12px;
+      cursor: pointer;
+      font-size: 12px;
+      color: var(--text-secondary);
+      user-select: none;
+    }
+
+    .open-editor-item:hover {
+      background: var(--bg-hover);
+      color: var(--text-primary);
+    }
+
+    .open-editor-item.active {
+      background: var(--bg-active);
+      color: var(--text-primary);
+    }
+
+    .open-editor-item .name {
+      flex: 1;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    .open-editor-item .close {
+      background: transparent;
+      border: none;
+      color: var(--text-muted);
+      cursor: pointer;
+      border-radius: 4px;
+      padding: 0 4px;
+      font-size: 13px;
+      line-height: 1.1;
+    }
+
+    .open-editor-item .close:hover {
+      background: var(--bg-active);
+      color: var(--text-primary);
+    }
+
     #file-tree {
       flex: 1;
       overflow-y: auto;
@@ -320,6 +401,7 @@ export function generateIdePage(config: Partial<IdePageConfig> = {}): string {
       display: flex;
       flex-direction: column;
       overflow: hidden;
+      min-width: 320px;
     }
     
     /* Tab Bar */
@@ -563,9 +645,13 @@ export function generateIdePage(config: Partial<IdePageConfig> = {}): string {
       <button class="toolbar-btn" id="new-file-btn" title="New File (Ctrl+N)">
         + New
       </button>
-      <button class="toolbar-btn" id="refresh-btn" title="Refresh Files">
+      <button class="toolbar-btn" id="open-folder-btn" title="Open Folder">
+        📂 Open Folder
+      </button>
+      <button class="toolbar-btn" id="refresh-btn" title="Refresh File Tree">
         ↻ Refresh
       </button>
+      <span id="workspace-path" title="Current workspace folder">/</span>
       <span id="save-status"></span>
     </div>
     
@@ -577,6 +663,10 @@ export function generateIdePage(config: Partial<IdePageConfig> = {}): string {
         </div>
         <div id="file-search-container">
           <input type="text" id="file-search" placeholder="Search files... (Ctrl+P)" />
+        </div>
+        <div id="open-editors" class="empty">
+          <div id="open-editors-header">Open Editors</div>
+          <div class="open-editor-empty">No open files</div>
         </div>
         <div id="file-tree"></div>
       </div>
@@ -598,6 +688,7 @@ export function generateIdePage(config: Partial<IdePageConfig> = {}): string {
           </div>
         </div>
       </div>
+
     </div>
   </div>
   
@@ -624,17 +715,20 @@ export function generateIdePage(config: Partial<IdePageConfig> = {}): string {
       models: new Map(), // path -> monaco model
       expandedDirs: new Set(['']),
       unsavedChanges: new Map(), // path -> true
+      workspaceRoot: '/',
     };
     
     // DOM Elements
     const elements = {
       loading: document.getElementById('loading'),
       fileTree: document.getElementById('file-tree'),
+      openEditors: document.getElementById('open-editors'),
       tabBar: document.getElementById('tab-bar'),
       editorContainer: document.getElementById('editor-container'),
       welcome: document.getElementById('welcome'),
       sidebar: document.getElementById('sidebar'),
       saveStatus: document.getElementById('save-status'),
+      workspacePath: document.getElementById('workspace-path'),
       contextMenu: document.getElementById('context-menu'),
       fileSearch: document.getElementById('file-search'),
     };
@@ -644,6 +738,28 @@ export function generateIdePage(config: Partial<IdePageConfig> = {}): string {
     
     // ==================== File API ====================
     
+    function normalizeWorkspaceRoot(path) {
+      if (!path || path === '/' || path === '.') return '/';
+      let normalized = String(path).trim();
+      while (normalized.startsWith('/')) normalized = normalized.slice(1);
+      while (normalized.endsWith('/')) normalized = normalized.slice(0, -1);
+      return normalized || '/';
+    }
+
+    function getWorkspaceApiPath() {
+      return state.workspaceRoot === '/' ? '/' : state.workspaceRoot;
+    }
+
+    function workspaceJoin(name) {
+      if (state.workspaceRoot === '/') return name;
+      return state.workspaceRoot + '/' + name;
+    }
+
+    function updateWorkspacePathLabel() {
+      elements.workspacePath.textContent = state.workspaceRoot;
+      elements.workspacePath.title = 'Current workspace folder: ' + state.workspaceRoot;
+    }
+
     async function fetchFiles(path = '/') {
       const res = await fetch(\`\${API_BASE}?path=\${encodeURIComponent(path)}&recursive=true\`);
       if (!res.ok) throw new Error('Failed to fetch files');
@@ -828,7 +944,7 @@ export function generateIdePage(config: Partial<IdePageConfig> = {}): string {
     
     async function refreshFileTree() {
       try {
-        state.files = await fetchFiles('/');
+        state.files = await fetchFiles(getWorkspaceApiPath());
         const tree = buildTree(state.files);
         elements.fileTree.innerHTML = '';
         renderTree(tree, elements.fileTree);
@@ -843,6 +959,94 @@ export function generateIdePage(config: Partial<IdePageConfig> = {}): string {
         item.classList.toggle('selected', item.dataset.path === state.activeTab);
       });
     }
+
+    function closeAllTabs(force = false) {
+      const paths = [...state.openTabs];
+      for (const path of paths) {
+        if (state.unsavedChanges.has(path) && !force) {
+          return false;
+        }
+      }
+
+      for (const path of paths) {
+        const model = state.models.get(path);
+        if (model) {
+          model.dispose();
+          state.models.delete(path);
+        }
+      }
+
+      state.openTabs = [];
+      state.activeTab = null;
+      state.unsavedChanges.clear();
+      state.editor.setModel(null);
+      elements.welcome.style.display = 'flex';
+      renderTabs();
+      return true;
+    }
+
+    async function setWorkspaceRoot(nextRoot) {
+      const normalized = normalizeWorkspaceRoot(nextRoot);
+      if (normalized === state.workspaceRoot) return;
+
+      const hasDirty = state.unsavedChanges.size > 0;
+      if (hasDirty) {
+        const ok = confirm('Switch workspace folder? Unsaved changes will be discarded.');
+        if (!ok) return;
+      }
+
+      closeAllTabs(true);
+      searchQuery = '';
+      elements.fileSearch.value = '';
+      state.expandedDirs.clear();
+      state.expandedDirs.add('');
+      state.workspaceRoot = normalized;
+      updateWorkspacePathLabel();
+      await refreshFileTree();
+    }
+    
+    function renderOpenEditors() {
+      const container = elements.openEditors;
+      container.innerHTML = '';
+      
+      const header = document.createElement('div');
+      header.id = 'open-editors-header';
+      header.textContent = 'Open Editors';
+      container.appendChild(header);
+      
+      if (state.openTabs.length === 0) {
+        const empty = document.createElement('div');
+        empty.className = 'open-editor-empty';
+        empty.textContent = 'No open files';
+        container.classList.add('empty');
+        container.appendChild(empty);
+        return;
+      }
+      
+      container.classList.remove('empty');
+      
+      for (const path of state.openTabs) {
+        const item = document.createElement('div');
+        item.className = 'open-editor-item' + (path === state.activeTab ? ' active' : '');
+        item.dataset.path = path;
+        const name = path.split('/').pop();
+        const icon = getFileIcon(name, 'file');
+        const modifiedDot = state.unsavedChanges.has(path) ? ' •' : '';
+        
+        item.innerHTML =
+          '<span class="icon">' + icon + '</span>' +
+          '<span class="name" title="' + path + '">' + name + modifiedDot + '</span>' +
+          '<button class="close" title="Close">×</button>';
+        
+        item.addEventListener('click', () => switchToTab(path));
+        item.querySelector('.close').addEventListener('click', (e) => {
+          e.stopPropagation();
+          closeTab(path);
+        });
+        
+        container.appendChild(item);
+      }
+    }
     
     // ==================== Tabs ====================
     
@@ -851,6 +1055,7 @@ export function generateIdePage(config: Partial<IdePageConfig> = {}): string {
     
     function renderTabs() {
       elements.tabBar.innerHTML = '';
+      renderOpenEditors();
       
       for (const path of state.openTabs) {
         const tab = document.createElement('button');
@@ -1141,6 +1346,7 @@ export function generateIdePage(config: Partial<IdePageConfig> = {}): string {
           elements.fileSearch.focus();
           elements.fileSearch.select();
         }
+
         
         // Cmd/Ctrl+Tab - Next tab
         if (modKey && e.key === 'Tab' && !e.shiftKey) {
@@ -1254,6 +1460,10 @@ export function generateIdePage(config: Partial<IdePageConfig> = {}): string {
           }
         });
         
+        const savedWorkspaceRoot = localStorage.getItem('workspaceRoot');
+        state.workspaceRoot = normalizeWorkspaceRoot(savedWorkspaceRoot || '/');
+        updateWorkspacePathLabel();
+
         // Load file tree
         await refreshFileTree();
         
@@ -1272,7 +1482,6 @@ export function generateIdePage(config: Partial<IdePageConfig> = {}): string {
         document.getElementById('toggle-sidebar').addEventListener('click', () => {
           elements.sidebar.classList.toggle('collapsed');
         });
-        document.getElementById('refresh-btn').addEventListener('click', refreshFileTree);
         document.getElementById('collapse-btn').addEventListener('click', () => {
           state.expandedDirs.clear();
           state.expandedDirs.add('');
@@ -1281,9 +1490,18 @@ export function generateIdePage(config: Partial<IdePageConfig> = {}): string {
         document.getElementById('new-file-btn').addEventListener('click', async () => {
           const name = prompt('New file name:');
           if (!name) return;
-          await writeFile(name, '');
+          const newPath = workspaceJoin(name);
+          await writeFile(newPath, '');
           await refreshFileTree();
-          openFile(name);
+          openFile(newPath);
+        });
+        document.getElementById('open-folder-btn').addEventListener('click', async () => {
+          const input = prompt('Open folder (relative to workspace root):', state.workspaceRoot);
+          if (input === null) return;
+          await setWorkspaceRoot(input);
+        });
+        document.getElementById('refresh-btn').addEventListener('click', async () => {
+          await refreshFileTree();
         });
         
         // Restore open tabs from localStorage
@@ -1292,6 +1510,9 @@ export function generateIdePage(config: Partial<IdePageConfig> = {}): string {
         if (savedTabs) {
           const tabs = JSON.parse(savedTabs);
           for (const path of tabs) {
+            if (state.workspaceRoot !== '/' && !path.startsWith(state.workspaceRoot + '/')) {
+              continue;
+            }
             state.openTabs.push(path);
           }
           if (savedActive && state.openTabs.includes(savedActive)) {
@@ -1306,6 +1527,7 @@ export function generateIdePage(config: Partial<IdePageConfig> = {}): string {
         const saveTabs = () => {
           localStorage.setItem('openTabs', JSON.stringify(state.openTabs));
           localStorage.setItem('activeTab', state.activeTab || '');
+          localStorage.setItem('workspaceRoot', state.workspaceRoot);
         };
         setInterval(saveTabs, 5000);
         window.addEventListener('beforeunload', saveTabs);

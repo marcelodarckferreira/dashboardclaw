@@ -39,6 +39,7 @@ describe("inject.js - WebSocket auto-reconnect", () => {
 
       this.removeEventListener = vi.fn();
       this.send = vi.fn();
+      this._rawSend = this.send;
       this.close = vi.fn();
 
       this.triggerEvent = (event: string, data: any = {}) => {
@@ -462,5 +463,86 @@ describe("inject.js - WebSocket auto-reconnect", () => {
       expect(chatLink.classList.contains("active")).toBe(true);
       expect(ideNav?.classList.contains("active")).toBe(false);
     });
+
+
+  describe("sidebar chat @file mentions", () => {
+    function createChatComposer() {
+      const main = window.document.createElement("main");
+      main.className = "content";
+      const form = window.document.createElement("form");
+      const textarea = window.document.createElement("textarea");
+      const send = window.document.createElement("button");
+      send.type = "submit";
+      send.textContent = "Send";
+      form.appendChild(textarea);
+      form.appendChild(send);
+      main.appendChild(form);
+      window.document.body.appendChild(main);
+      return { textarea, send, form };
+    }
+
+    it("should render mention picker and chips, and support keyboard selection/removal", async () => {
+      window.fetch = vi.fn(async (url: string) => {
+        if (String(url).includes('/api/files/read')) {
+          return { ok: true, json: async () => ({ content: 'hello world' }) } as any;
+        }
+        return { ok: true, json: async () => ({ files: [{ path: 'src/index.ts', type: 'file' }] }) } as any;
+      });
+
+      const { textarea } = createChatComposer();
+      window.eval(injectScript);
+      await Promise.resolve();
+      await Promise.resolve();
+      await new Promise((r) => setTimeout(r, 0));
+
+      textarea.value = '@src';
+      textarea.selectionStart = textarea.selectionEnd = textarea.value.length;
+      textarea.dispatchEvent(new window.Event('input', { bubbles: true }));
+
+      const picker = window.document.querySelector('.better-gateway-chat-file-picker');
+      expect(picker).not.toBeNull();
+      expect((picker as HTMLElement).style.display).not.toBe('none');
+
+      textarea.dispatchEvent(new window.KeyboardEvent('keydown', { key: 'Enter', bubbles: true }));
+      await Promise.resolve();
+
+      const chip = window.document.querySelector('.better-gateway-chat-file-chip');
+      expect(chip).not.toBeNull();
+
+      textarea.value = '';
+      textarea.dispatchEvent(new window.KeyboardEvent('keydown', { key: 'Backspace', bubbles: true }));
+      expect(window.document.querySelector('.better-gateway-chat-file-chip')).toBeNull();
+    });
+
+    it("should attach referenced files into outbound chat.send payload", async () => {
+      window.fetch = vi.fn(async (url: string) => {
+        if (String(url).includes('/api/files/read')) {
+          return { ok: true, json: async () => ({ content: 'context content' }) } as any;
+        }
+        return { ok: true, json: async () => ({ files: [{ path: 'AGENTS.md', type: 'file' }] }) } as any;
+      });
+
+      const { textarea } = createChatComposer();
+      window.eval(injectScript);
+      await Promise.resolve();
+      await Promise.resolve();
+      await new Promise((r) => setTimeout(r, 0));
+
+      textarea.value = 'hi @AG';
+      textarea.selectionStart = textarea.selectionEnd = textarea.value.length;
+      textarea.dispatchEvent(new window.Event('input', { bubbles: true }));
+      textarea.dispatchEvent(new window.KeyboardEvent('keydown', { key: 'Enter', bubbles: true }));
+      await Promise.resolve();
+      await new Promise((r) => setTimeout(r, 0));
+
+      const ws = new window.WebSocket('ws://localhost:8080');
+      ws.send(JSON.stringify({ type: 'req', id: '1', method: 'chat.send', params: { message: 'hi' } }));
+
+      const rawSend = OriginalWebSocket.mock.instances[OriginalWebSocket.mock.instances.length - 1]._rawSend;
+      const payload = JSON.parse(rawSend.mock.calls[0][0]);
+      expect(payload.params.message).toContain('<file path="AGENTS.md">');
+      expect(payload.params.message).toContain('context content');
+    });
+  });
   });
 });

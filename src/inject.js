@@ -1,6 +1,8 @@
 (function () {
   "use strict";
 
+  const INJECT_VERSION = "2026-02-10.8";
+
   const config = window.__BETTER_GATEWAY_CONFIG__ || {
     reconnectIntervalMs: 3000,
     maxReconnectAttempts: 10,
@@ -425,9 +427,11 @@
 
     // Also use MutationObserver for dynamic content
     var observer = new MutationObserver(function (mutations, obs) {
-      if (injectIdeNavItem()) {
-        obs.disconnect();
-      }
+      try {
+        if (injectIdeNavItem()) {
+          obs.disconnect();
+        }
+      } catch (_error) {}
     });
 
     observer.observe(document.body, {
@@ -439,6 +443,439 @@
     setTimeout(function () {
       observer.disconnect();
     }, 10000);
+  }
+
+  // ==================== Chat Sidebar Mention Enhancer ====================
+
+  const mentionState = {
+    textarea: null,
+    composer: null,
+    chips: null,
+    picker: null,
+    files: [],
+    selected: [],
+    pickerOpen: false,
+    pickerItems: [],
+    activeIndex: 0,
+    mentionRange: null,
+  };
+
+  const FILE_CONTEXT_CHAR_LIMIT = 6000;
+  const TOTAL_CONTEXT_CHAR_LIMIT = 18000;
+
+  function escapeHtml(value) {
+    return String(value || "")
+      .replace(/&/g, "&amp;")
+      .replace(/</g, "&lt;")
+      .replace(/>/g, "&gt;")
+      .replace(/\"/g, "&quot;")
+      .replace(/'/g, "&#39;");
+  }
+
+  async function fetchWorkspaceFiles() {
+    if (typeof fetch !== "function") return;
+    try {
+      const response = await fetch("/better-gateway/api/files?path=%2F&recursive=true");
+      if (!response.ok) return;
+      const payload = await response.json();
+      mentionState.files = Array.isArray(payload.files)
+        ? payload.files.filter((entry) => entry && entry.type === "file").map((entry) => entry.path)
+        : [];
+      if (mentionState.textarea) refreshMentionPicker();
+    } catch (error) {
+      console.warn("[BetterGateway] failed to index workspace files", error);
+    }
+  }
+
+  function findMentionRange(value, cursorIndex) {
+    const before = value.slice(0, cursorIndex);
+    const match = before.match(/(^|\s)@([^\s@.,!?;:]*)$/);
+    if (!match) return null;
+    const token = match[0];
+    const query = match[2] || "";
+    const atIndex = cursorIndex - token.length + token.lastIndexOf("@");
+    return { start: atIndex, end: cursorIndex, query };
+  }
+
+  function getMentionCandidates(query) {
+    const needle = String(query || "").toLowerCase();
+    return mentionState.files
+      .filter((path) => !mentionState.selected.some((entry) => entry.path === path))
+      .map((path) => {
+        const lower = path.toLowerCase();
+        const index = needle ? lower.indexOf(needle) : 0;
+        return { path, index, name: path.split("/").pop() || path };
+      })
+      .filter((item) => !needle || item.index !== -1)
+      .sort((a, b) => {
+        if (a.index !== b.index) return a.index - b.index;
+        if (a.path.length !== b.path.length) return a.path.length - b.path.length;
+        return a.path.localeCompare(b.path);
+      })
+      .slice(0, 20);
+  }
+
+  function closeMentionPicker() {
+    mentionState.pickerOpen = false;
+    mentionState.pickerItems = [];
+    mentionState.mentionRange = null;
+    if (mentionState.picker) {
+      mentionState.picker.style.display = "none";
+      mentionState.picker.innerHTML = "";
+    }
+  }
+
+  function renderMentionPicker() {
+    if (!mentionState.picker || !mentionState.pickerOpen || mentionState.pickerItems.length === 0) {
+      closeMentionPicker();
+      return;
+    }
+
+    mentionState.picker.innerHTML = mentionState.pickerItems
+      .map((item, idx) => {
+        const activeClass = idx === mentionState.activeIndex ? "active" : "";
+        return '<div class="better-gateway-chat-file-option ' + activeClass + '" data-path="' + escapeHtml(item.path) + '">'
+          + '<span class="path">' + escapeHtml(item.path) + '</span>'
+          + '<span class="name">' + escapeHtml(item.name) + '</span>'
+          + '</div>';
+      })
+      .join("");
+    mentionState.picker.style.display = "block";
+
+    mentionState.picker.querySelectorAll(".better-gateway-chat-file-option").forEach(function (option) {
+      option.addEventListener("mousedown", function (event) {
+        event.preventDefault();
+        selectMentionFile(option.dataset.path || "");
+      });
+    });
+  }
+
+  function renderMentionChips() {
+    if (!mentionState.chips) return;
+    if (typeof document === "undefined" || !document.createElement) return;
+    mentionState.chips.innerHTML = "";
+
+    mentionState.selected.forEach(function (entry) {
+      const chip = document.createElement("button");
+      chip.type = "button";
+      chip.className = "better-gateway-chat-file-chip";
+      chip.setAttribute("data-path", entry.path);
+      chip.innerHTML = '<span class="chip-path">' + escapeHtml(entry.path) + '</span><span class="chip-remove" aria-hidden="true">×</span>';
+      chip.addEventListener("click", function () {
+        mentionState.selected = mentionState.selected.filter((item) => item.path !== entry.path);
+        renderMentionChips();
+        refreshMentionPicker();
+      });
+      mentionState.chips.appendChild(chip);
+    });
+  }
+
+  function refreshMentionPicker() {
+    if (!mentionState.textarea) return;
+    const range = findMentionRange(mentionState.textarea.value, mentionState.textarea.selectionStart || 0);
+    if (!range) {
+      closeMentionPicker();
+      return;
+    }
+    mentionState.mentionRange = range;
+    mentionState.pickerItems = getMentionCandidates(range.query);
+    mentionState.activeIndex = Math.min(mentionState.activeIndex, Math.max(mentionState.pickerItems.length - 1, 0));
+    mentionState.pickerOpen = mentionState.pickerItems.length > 0;
+    renderMentionPicker();
+  }
+
+  async function readFileContext(path) {
+    const response = await fetch("/better-gateway/api/files/read?path=" + encodeURIComponent(path));
+    if (!response.ok) throw new Error("read failed");
+    const payload = await response.json();
+    const content = String(payload.content || "");
+    if (content.length <= FILE_CONTEXT_CHAR_LIMIT) {
+      return { path, content, truncated: false };
+    }
+    return {
+      path,
+      content: content.slice(0, FILE_CONTEXT_CHAR_LIMIT),
+      truncated: true,
+      originalLength: content.length,
+    };
+  }
+
+  async function selectMentionFile(path) {
+    if (!path) return;
+    if (mentionState.selected.some((entry) => entry.path === path)) return;
+
+    let context = { path, content: "", truncated: false, error: "pending" };
+    mentionState.selected.push(context);
+    renderMentionChips();
+
+    const range = mentionState.mentionRange;
+    if (range && mentionState.textarea) {
+      const nextValue = mentionState.textarea.value.slice(0, range.start) + mentionState.textarea.value.slice(range.end);
+      mentionState.textarea.value = nextValue;
+      mentionState.textarea.setSelectionRange(range.start, range.start);
+    }
+
+    closeMentionPicker();
+    if (mentionState.textarea) mentionState.textarea.focus();
+
+    try {
+      const loaded = await readFileContext(path);
+      const idx = mentionState.selected.findIndex((entry) => entry.path === path);
+      if (idx !== -1) {
+        mentionState.selected[idx] = loaded;
+      }
+    } catch (error) {
+      const idx = mentionState.selected.findIndex((entry) => entry.path === path);
+      if (idx !== -1) {
+        mentionState.selected[idx] = { path, content: "", truncated: false, error: "read_failed" };
+      }
+    }
+    renderMentionChips();
+  }
+
+  function prepareFileRefsForMessage(refs) {
+    if (!refs || refs.length === 0) return [];
+
+    let remaining = TOTAL_CONTEXT_CHAR_LIMIT;
+    const output = [];
+    refs.forEach(function (entry) {
+      if (!entry || !entry.path || remaining <= 0) return;
+      const content = String(entry.content || "");
+      if (!content) {
+        output.push({ path: entry.path, truncated: Boolean(entry.truncated), error: entry.error || "empty" });
+        return;
+      }
+      const slice = content.slice(0, remaining);
+      output.push({
+        path: entry.path,
+        content: slice,
+        truncated: Boolean(entry.truncated) || slice.length < content.length,
+      });
+      remaining -= slice.length;
+    });
+    return output;
+  }
+
+  function buildMessageWithFileRefs(baseMessage, fileRefs) {
+    const body = String(baseMessage || "");
+    if (!fileRefs || fileRefs.length === 0) return body;
+
+    const blocks = fileRefs
+      .map(function (ref) {
+        const path = String((ref && ref.path) || "");
+        if (!path) return "";
+        var content = String((ref && ref.content) || "");
+        if (!content) return "<file path=\"" + path + "\">(could not read file)</file>";
+        var tag = "<file path=\"" + path + "\"";
+        if (ref.truncated) tag += " truncated=\"true\"";
+        tag += ">\n" + content + "\n</file>";
+        return tag;
+      })
+      .filter(Boolean);
+    if (blocks.length === 0) return body;
+    return body + "\n\n" + blocks.join("\n\n");
+  }
+
+  function attachChatComposerEnhancements() {
+    if (typeof document === "undefined" || !document.querySelector) return;
+    const textarea = document.querySelector("main.content textarea");
+    if (!textarea || mentionState.textarea === textarea) return;
+
+    mentionState.textarea = textarea;
+    mentionState.composer = textarea.parentElement || textarea.closest("form") || textarea.parentElement;
+    if (!mentionState.composer) return;
+
+    let chips = mentionState.composer.querySelector(".better-gateway-chat-file-chips");
+    if (!chips) {
+      chips = document.createElement("div");
+      chips.className = "better-gateway-chat-file-chips";
+      textarea.parentElement.insertBefore(chips, textarea);
+    }
+
+    let picker = mentionState.composer.querySelector(".better-gateway-chat-file-picker");
+    if (!picker) {
+      picker = document.createElement("div");
+      picker.className = "better-gateway-chat-file-picker";
+      textarea.parentElement.insertBefore(picker, textarea);
+    }
+
+    mentionState.chips = chips;
+    mentionState.picker = picker;
+
+    if (!document.getElementById("better-gateway-chat-mention-style")) {
+      const style = document.createElement("style");
+      style.id = "better-gateway-chat-mention-style";
+      style.textContent = `
+        .better-gateway-chat-file-chips { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 8px; }
+        .better-gateway-chat-file-chip { border: 1px solid #2a4a67; background: #1f3347; color: #dbeafe; border-radius: 999px; padding: 4px 8px; display: inline-flex; align-items: center; gap: 6px; cursor: pointer; }
+        .better-gateway-chat-file-chip .chip-path { max-width: 260px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+        .better-gateway-chat-file-chip .chip-remove { font-size: 12px; line-height: 1; }
+        .better-gateway-chat-file-picker { position: absolute; left: 0; right: 0; bottom: calc(100% + 6px); background: #1e1e1e; border: 1px solid #3c3c3c; border-radius: 8px; max-height: 220px; overflow: auto; display: none; z-index: 999; }
+        .better-gateway-chat-file-option { display: flex; justify-content: space-between; gap: 8px; padding: 8px 10px; cursor: pointer; }
+        .better-gateway-chat-file-option:hover, .better-gateway-chat-file-option.active { background: #2a2d2e; }
+        .better-gateway-chat-file-option .path { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+        .better-gateway-chat-file-option .name { color: #8b8b8b; font-size: 11px; }
+        file[path] { display: none !important; }
+        .bg-chat-file-wrapper { margin: 6px 0; }
+        .bg-chat-file-chip { display: inline-flex; align-items: center; gap: 6px; border: 1px solid #2a4a67; background: #1f3347; color: #dbeafe; border-radius: 8px; padding: 6px 12px; cursor: pointer; font-size: 13px; user-select: none; }
+        .bg-chat-file-chip:hover { background: #253d54; }
+        .bg-chat-file-chip .chip-toggle { font-size: 10px; transition: transform 0.2s; display: inline-block; }
+        .bg-chat-file-chip.expanded .chip-toggle { transform: rotate(90deg); }
+        .bg-chat-file-chip .chip-path { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+        .bg-chat-file-chip .chip-truncated { opacity: 0.6; font-size: 11px; }
+        .bg-chat-file-content { display: none; background: #0d1117; border: 1px solid #30363d; border-radius: 6px; padding: 12px; margin: 4px 0 8px; font-family: monospace; font-size: 12px; line-height: 1.5; white-space: pre-wrap; word-break: break-word; max-height: 400px; overflow-y: auto; color: #e6edf3; }
+        .bg-chat-file-content.visible { display: block; }
+      `;
+      document.head.appendChild(style);
+    }
+
+    mentionState.composer.style.position = mentionState.composer.style.position || "relative";
+
+    textarea.addEventListener("input", function () {
+      refreshMentionPicker();
+    });
+    textarea.addEventListener("click", refreshMentionPicker);
+    textarea.addEventListener("keydown", function (event) {
+      if (event.key === "ArrowDown" && mentionState.pickerOpen) {
+        event.preventDefault();
+        mentionState.activeIndex = (mentionState.activeIndex + 1) % mentionState.pickerItems.length;
+        renderMentionPicker();
+        return;
+      }
+      if (event.key === "ArrowUp" && mentionState.pickerOpen) {
+        event.preventDefault();
+        mentionState.activeIndex = (mentionState.activeIndex - 1 + mentionState.pickerItems.length) % mentionState.pickerItems.length;
+        renderMentionPicker();
+        return;
+      }
+      if (event.key === "Escape" && mentionState.pickerOpen) {
+        event.preventDefault();
+        closeMentionPicker();
+        return;
+      }
+
+      if (event.key === "Backspace" && !textarea.value && mentionState.selected.length > 0) {
+        mentionState.selected.pop();
+        renderMentionChips();
+        return;
+      }
+    }, true);
+
+    renderMentionChips();
+  }
+
+  function transformFileBlocksInChat() {
+    var chatArea = document.querySelector("main.content");
+    if (!chatArea) return;
+
+    // Case 1: <file> rendered as DOM elements (hidden by CSS, replaced with chip)
+    var fileEls = chatArea.querySelectorAll("file[path]:not([data-bg-chip])");
+    fileEls.forEach(function (fileEl) {
+      if (fileEl.closest("textarea, input, .better-gateway-chat-file-chips, .better-gateway-chat-file-picker")) return;
+      fileEl.setAttribute("data-bg-chip", "true");
+
+      var path = fileEl.getAttribute("path") || "";
+      var content = fileEl.textContent || "";
+      var truncated = fileEl.getAttribute("truncated") === "true";
+
+      var wrapper = document.createElement("div");
+      wrapper.className = "bg-chat-file-wrapper";
+
+      var chip = document.createElement("div");
+      chip.className = "bg-chat-file-chip";
+      chip.innerHTML = '<span class="chip-toggle">\u25B6</span>'
+        + '<span class="chip-path">' + escapeHtml(path) + '</span>'
+        + (truncated ? '<span class="chip-truncated">(truncated)</span>' : '');
+
+      var contentPanel = document.createElement("pre");
+      contentPanel.className = "bg-chat-file-content";
+      contentPanel.textContent = content;
+
+      chip.addEventListener("click", function () {
+        chip.classList.toggle("expanded");
+        contentPanel.classList.toggle("visible");
+      });
+
+      wrapper.appendChild(chip);
+      wrapper.appendChild(contentPanel);
+      fileEl.parentNode.insertBefore(wrapper, fileEl);
+    });
+
+    // Case 2: <file> escaped as HTML entities in text
+    var candidates = chatArea.querySelectorAll("p:not([data-bg-files-done]), div:not([data-bg-files-done]), span:not([data-bg-files-done])");
+    var escapedRe = /&lt;file path=&quot;([^&]*)&quot;(?:\s*truncated=&quot;(true)&quot;)?&gt;\n?([\s\S]*?)\n?&lt;\/file&gt;/g;
+    for (var i = 0; i < candidates.length; i++) {
+      var el = candidates[i];
+      if (el.closest(".bg-chat-file-wrapper, .better-gateway-chat-file-chips, .better-gateway-chat-file-picker, textarea, input")) continue;
+      var html = el.innerHTML;
+      if (!escapedRe.test(html)) continue;
+      escapedRe.lastIndex = 0;
+      el.setAttribute("data-bg-files-done", "true");
+      el.innerHTML = html.replace(escapedRe, function (_match, path, truncated, content) {
+        var decoded = content.replace(/&amp;/g, "&").replace(/&lt;/g, "<").replace(/&gt;/g, ">").replace(/&quot;/g, '"').replace(/&#39;/g, "'");
+        var t = truncated === "true";
+        return '<div class="bg-chat-file-wrapper">'
+          + '<div class="bg-chat-file-chip"><span class="chip-toggle">\u25B6</span>'
+          + '<span class="chip-path">' + escapeHtml(path) + '</span>'
+          + (t ? '<span class="chip-truncated">(truncated)</span>' : '')
+          + '</div>'
+          + '<pre class="bg-chat-file-content">' + escapeHtml(decoded) + '</pre>'
+          + '</div>';
+      });
+      el.querySelectorAll(".bg-chat-file-chip:not([data-bg-bound])").forEach(function (chip) {
+        chip.setAttribute("data-bg-bound", "true");
+        chip.addEventListener("click", function () {
+          chip.classList.toggle("expanded");
+          var panel = chip.nextElementSibling;
+          if (panel && panel.classList.contains("bg-chat-file-content")) {
+            panel.classList.toggle("visible");
+          }
+        });
+      });
+    }
+  }
+
+  function startChatComposerEnhancer() {
+    fetchWorkspaceFiles();
+    attachChatComposerEnhancements();
+
+    // Window-level capture handler fires before any framework handlers
+    // (capture phase: window → document → ... → textarea), preventing
+    // the gateway from seeing Enter as a "send message" action.
+    window.addEventListener("keydown", function (event) {
+      if (event.key !== "Enter" || event.shiftKey) return;
+      var target = event.target;
+      if (!target || target.tagName !== "TEXTAREA") return;
+      if (!target.closest || !target.closest("main.content")) return;
+
+      var liveRange = findMentionRange(target.value, target.selectionStart || 0);
+      if (!mentionState.pickerOpen && !liveRange) return;
+
+      mentionState.textarea = target;
+      if (!mentionState.pickerOpen && liveRange) {
+        refreshMentionPicker();
+      }
+
+      var selected = mentionState.pickerItems[mentionState.activeIndex] || mentionState.pickerItems[0];
+      if (!selected) return;
+
+      event.preventDefault();
+      event.stopPropagation();
+      if (typeof event.stopImmediatePropagation === "function") event.stopImmediatePropagation();
+
+      selectMentionFile(selected.path);
+    }, true);
+
+    transformFileBlocksInChat();
+
+    if (!document.body) return;
+    const observer = new MutationObserver(function () {
+      try {
+        attachChatComposerEnhancements();
+        transformFileBlocksInChat();
+      } catch (_error) {}
+    });
+    observer.observe(document.body, { childList: true, subtree: true });
   }
 
   function wrapWebSocket(OriginalWebSocket) {
@@ -481,6 +918,35 @@
         updateStatus("disconnected", "Connection error");
       });
 
+      const originalSend = ws.send && ws.send.bind(ws);
+      if (originalSend) {
+        ws.send = function (data) {
+          try {
+            if (typeof data === "string" && mentionState.selected.length > 0) {
+              const frame = JSON.parse(data);
+              if (frame && frame.type === "req" && frame.method === "chat.send" && frame.params) {
+                const fileRefs = prepareFileRefsForMessage(mentionState.selected);
+                mentionState.selected = [];
+                renderMentionChips();
+                if (fileRefs.length > 0) {
+                  if (typeof frame.params.message === "string") {
+                    frame.params.message = buildMessageWithFileRefs(frame.params.message, fileRefs);
+                  } else if (typeof frame.params.text === "string") {
+                    frame.params.text = buildMessageWithFileRefs(frame.params.text, fileRefs);
+                  } else if (typeof frame.params.input === "string") {
+                    frame.params.input = buildMessageWithFileRefs(frame.params.input, fileRefs);
+                  }
+                  data = JSON.stringify(frame);
+                }
+              }
+            }
+          } catch (error) {
+            // non-JSON frame or parse issues; pass through untouched
+          }
+          return originalSend(data);
+        };
+      }
+
       return ws;
     }
 
@@ -499,10 +965,12 @@
     document.addEventListener("DOMContentLoaded", function () {
       updateStatus("connected", "Ready");
       tryInjectIdeNavItem();
+      startChatComposerEnhancer();
     });
   } else {
     updateStatus("connected", "Ready");
     tryInjectIdeNavItem();
+    startChatComposerEnhancer();
   }
 
   window.addEventListener("online", function () {
@@ -513,5 +981,6 @@
     updateStatus("disconnected", "Offline");
   });
 
-  console.log("[BetterGateway] Auto-reconnect enabled", config);
+  window.__BETTER_GATEWAY_INJECT_VERSION__ = INJECT_VERSION;
+  console.log("[BetterGateway] Auto-reconnect enabled", { ...config, injectVersion: INJECT_VERSION });
 })();
