@@ -96,16 +96,58 @@ const idePage = `
 `;
 ```
 
-### 1.3 Basic Integration
+### 1.3 Embedded IDE Integration
 
-**Goal:** Make IDE accessible from gateway UI.
+**Goal:** Make IDE a native view within the gateway UI, not a separate page.
 
-**Options:**
-1. **Sidebar Tab (Preferred)** — Inject "IDE" tab, loads IDE in main content area
-2. **New Window** — Link opens `/better-gateway/ide` in new tab
-3. **Iframe Embed** — Embed IDE page in gateway UI
+**Approach: Embedded iframe with view switching**
+- Add "IDE" nav-item in sidebar **below "Chat"** (same `.nav-item` styling)
+- When clicked, hide the main content and show IDE in an iframe
+- Sidebar remains persistent — only the main content area switches
+- Toggle `active` class between Chat and IDE nav items
 
-**Recommendation:** Start with option 2 (separate page), then migrate to option 1.
+**Implementation:**
+```typescript
+// Inject IDE nav-item matching gateway's native styling
+function injectIdeNavItem() {
+  const chatGroup = document.querySelector('.nav-group');
+  const navItems = chatGroup.querySelector('.nav-group__items');
+  
+  const ideItem = document.createElement('a');
+  ideItem.href = '#ide';
+  ideItem.className = 'nav-item';
+  ideItem.innerHTML = `
+    <span class="nav-item__icon"><!-- code icon SVG --></span>
+    <span class="nav-item__text">IDE</span>
+  `;
+  
+  ideItem.addEventListener('click', toggleIdeView);
+  navItems.appendChild(ideItem);
+}
+
+function toggleIdeView() {
+  const main = document.querySelector('main.content');
+  let ideFrame = document.getElementById('better-gateway-ide-frame');
+  
+  if (!ideFrame) {
+    ideFrame = document.createElement('iframe');
+    ideFrame.id = 'better-gateway-ide-frame';
+    ideFrame.src = '/better-gateway/ide';
+    main.parentNode.insertBefore(ideFrame, main.nextSibling);
+  }
+  
+  // Toggle visibility and active states
+  const showIde = ideFrame.style.display === 'none';
+  ideFrame.style.display = showIde ? 'block' : 'none';
+  main.style.display = showIde ? 'none' : '';
+}
+```
+
+**Benefits:**
+- Feels native — same sidebar, same layout
+- No page navigation — instant switching
+- Sidebar state preserved when switching views
+- Foundation for future split view (IDE + Chat side by side)
 
 ---
 
@@ -294,14 +336,42 @@ better-gateway-dev/
 2. [x] Add comprehensive test suite (69 tests) ✅ **DONE**
 3. [x] Add GitHub Actions CI/CD workflow ✅ **DONE**
 4. [x] Create IDE page with Monaco (CDN) ✅ **DONE**
-5. [ ] Implement file tree component
-6. [ ] Basic editor tabs
+5. [x] Implement file tree component ✅ **DONE** (Phase 1)
+   - Collapsible folder structure
+   - File icons by extension  
+   - Click to open in editor
+   - Search/filter files (Ctrl+P)
+   - Auto-expand matching folders during search
+   - Highlight matching text
+6. [x] Basic editor tabs ✅ **DONE** (Phase 1)
+   - Drag to reorder tabs
+   - Middle-click to close
+   - Tab navigation (Ctrl+Tab, Ctrl+Shift+Tab)
+   - Modified indicator
 
 ### Week 2: Gateway Integration
-7. [ ] Inject "IDE" link/tab in gateway sidebar
-8. [ ] Style consistency with gateway UI
-9. [ ] Keyboard shortcuts (Ctrl+S save, etc.)
-10. [ ] localStorage state persistence
+7. [x] Inject "IDE" as embedded view in gateway ✅ **DONE** (Phase 1)
+   - IDE nav-item added below "Chat" in sidebar
+   - Uses gateway's native `.nav-item` styling
+   - Clicking toggles between Chat and IDE views
+   - IDE loads in iframe, main content hides
+   - Sidebar stays persistent across view switches
+8. [x] Style consistency with gateway UI ✅ **DONE** (Phase 1)
+   - Matches VS Code dark theme (vs-dark)
+   - Uses gateway accent colors
+   - Consistent font families
+9. [x] Keyboard shortcuts (Ctrl+S save, etc.) ✅ **DONE**
+   - Ctrl+S: Save file
+   - Ctrl+B: Toggle sidebar
+   - Ctrl+W: Close tab
+   - Ctrl+P: Quick file search
+   - Ctrl+Tab: Next tab
+   - Ctrl+Shift+Tab: Previous tab
+   - Escape: Clear search / hide context menu
+10. [x] localStorage state persistence ✅ **DONE**
+   - Open tabs persist across refreshes
+   - Active tab remembered
+   - Editor view state (cursor, scroll) preserved
 
 ### Week 3: Chat Integration
 11. [ ] `@file` mention autocomplete

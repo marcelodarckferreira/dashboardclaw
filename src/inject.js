@@ -11,6 +11,7 @@
   let originalWebSocket = window.WebSocket;
   let activeConnections = new Set();
   let currentState = "connected";
+  let ideTabInjected = false;
 
   function createStatusIndicator() {
     if (statusIndicator) return statusIndicator;
@@ -98,6 +99,206 @@
     }
   }
 
+  // ==================== IDE Embedded View ====================
+
+  let ideViewActive = false;
+
+  // SVG icon for code/IDE (matches gateway's feather icon style)
+  const IDE_ICON_SVG = `
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+      <polyline points="16 18 22 12 16 6"></polyline>
+      <polyline points="8 6 2 12 8 18"></polyline>
+    </svg>
+  `;
+
+  function createIdeNavItem() {
+    const item = document.createElement("a");
+    item.id = "better-gateway-ide-nav";
+    item.href = "#ide";
+    item.className = "nav-item";
+    item.title = "IDE - Code Editor";
+    item.innerHTML = `
+      <span class="nav-item__icon" aria-hidden="true">${IDE_ICON_SVG}</span>
+      <span class="nav-item__text">IDE</span>
+    `;
+
+    item.addEventListener("click", function (e) {
+      e.preventDefault();
+      toggleIdeView();
+    });
+
+    return item;
+  }
+
+  function createIdeFrame() {
+    const frame = document.createElement("iframe");
+    frame.id = "better-gateway-ide-frame";
+    frame.src = "/better-gateway/ide";
+    frame.style.cssText = `
+      width: 100%;
+      height: 100%;
+      border: none;
+      background: #1e1e1e;
+    `;
+    return frame;
+  }
+
+  function toggleIdeView() {
+    if (ideViewActive) {
+      showChatView();
+    } else {
+      showIdeView();
+    }
+  }
+
+  function showIdeView() {
+    const main = document.querySelector("main.content");
+    if (!main) return;
+
+    // Create IDE frame if it doesn't exist
+    let ideFrame = document.getElementById("better-gateway-ide-frame");
+    if (!ideFrame) {
+      ideFrame = createIdeFrame();
+      ideFrame.style.display = "none";
+      main.parentNode.insertBefore(ideFrame, main.nextSibling);
+    }
+
+    // Hide main content, show IDE frame
+    main.style.display = "none";
+    ideFrame.style.display = "block";
+    ideFrame.style.width = "100%";
+    ideFrame.style.height = "100%";
+    ideFrame.style.flex = "1";
+
+    // Update nav item active states
+    const chatNav = document.querySelector('.nav-item[href="/chat"]') 
+      || document.querySelector('.nav-item[href="/better-gateway/chat"]');
+    const ideNav = document.getElementById("better-gateway-ide-nav");
+    
+    if (chatNav) chatNav.classList.remove("active");
+    if (ideNav) ideNav.classList.add("active");
+
+    ideViewActive = true;
+    console.log("[BetterGateway] Switched to IDE view");
+  }
+
+  function showChatView() {
+    const main = document.querySelector("main.content");
+    const ideFrame = document.getElementById("better-gateway-ide-frame");
+
+    // Show main content, hide IDE frame
+    if (main) main.style.display = "";
+    if (ideFrame) ideFrame.style.display = "none";
+
+    // Update nav item active states
+    const chatNav = document.querySelector('.nav-item[href="/chat"]') 
+      || document.querySelector('.nav-item[href="/better-gateway/chat"]');
+    const ideNav = document.getElementById("better-gateway-ide-nav");
+    
+    if (chatNav) chatNav.classList.add("active");
+    if (ideNav) ideNav.classList.remove("active");
+
+    ideViewActive = false;
+    console.log("[BetterGateway] Switched to Chat view");
+  }
+
+  function injectIdeNavItem() {
+    if (ideTabInjected) return false;
+
+    // Don't inject on the standalone IDE page
+    if (window.location && window.location.pathname === "/better-gateway/ide") {
+      return false;
+    }
+
+    // Check if already injected
+    if (document.getElementById("better-gateway-ide-nav")) {
+      ideTabInjected = true;
+      return false;
+    }
+
+    // Find the Chat section's nav-group__items container
+    // The gateway structure is: .nav-group > .nav-group__items > .nav-item[href="/chat"]
+    // Note: When accessed via /better-gateway/, links become /better-gateway/chat
+    const chatLink = document.querySelector('.nav-item[href="/chat"]') 
+      || document.querySelector('.nav-item[href="/better-gateway/chat"]');
+    if (!chatLink) {
+      return false;
+    }
+
+    const navItems = chatLink.parentElement;
+    if (!navItems || !navItems.classList.contains("nav-group__items")) {
+      return false;
+    }
+
+    // Intercept Chat link clicks when IDE is active
+    chatLink.addEventListener("click", function (e) {
+      if (ideViewActive) {
+        e.preventDefault();
+        e.stopPropagation();
+        showChatView();
+      }
+    });
+
+    // For all other nav items, restore main content before navigation
+    // This ensures the gateway's SPA routing works properly
+    const allNavItems = document.querySelectorAll(".nav-item");
+    allNavItems.forEach(function (navItem) {
+      // Skip Chat and IDE links (handled separately)
+      if (navItem === chatLink || navItem.id === "better-gateway-ide-nav") {
+        return;
+      }
+      
+      navItem.addEventListener("click", function () {
+        if (ideViewActive) {
+          // Restore original content before navigation
+          showChatView();
+        }
+      });
+    });
+
+    // Create and insert IDE nav item after Chat
+    const ideNavItem = createIdeNavItem();
+    navItems.appendChild(ideNavItem);
+
+    ideTabInjected = true;
+    console.log("[BetterGateway] IDE nav item injected below Chat");
+    return true;
+  }
+
+  function tryInjectIdeNavItem() {
+    // Try immediately
+    if (injectIdeNavItem()) return;
+
+    // Retry a few times with increasing delays (handles SPAs)
+    var retryDelays = [100, 300, 500, 1000, 2000];
+    var retryIndex = 0;
+    
+    function retryInjection() {
+      if (injectIdeNavItem()) return;
+      if (retryIndex < retryDelays.length) {
+        setTimeout(retryInjection, retryDelays[retryIndex++]);
+      }
+    }
+    setTimeout(retryInjection, retryDelays[retryIndex++]);
+
+    // Also use MutationObserver for dynamic content
+    var observer = new MutationObserver(function (mutations, obs) {
+      if (injectIdeNavItem()) {
+        obs.disconnect();
+      }
+    });
+
+    observer.observe(document.body, {
+      childList: true,
+      subtree: true,
+    });
+
+    // Give up after 10 seconds
+    setTimeout(function () {
+      observer.disconnect();
+    }, 10000);
+  }
+
   function wrapWebSocket(OriginalWebSocket) {
     function BetterWebSocket(url, protocols) {
       const ws = new OriginalWebSocket(url, protocols);
@@ -155,9 +356,11 @@
   if (document.readyState === "loading") {
     document.addEventListener("DOMContentLoaded", function () {
       updateStatus("connected", "Ready");
+      tryInjectIdeNavItem();
     });
   } else {
     updateStatus("connected", "Ready");
+    tryInjectIdeNavItem();
   }
 
   window.addEventListener("online", function () {

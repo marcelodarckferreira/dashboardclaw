@@ -280,4 +280,166 @@ describe("inject.js - WebSocket auto-reconnect", () => {
       expect(indicator?.innerHTML).toContain("Offline");
     });
   });
+
+  describe("IDE embedded view", () => {
+    function createGatewaySidebar() {
+      // Create gateway-like sidebar structure
+      const sidebar = window.document.createElement("aside");
+      sidebar.className = "nav";
+      
+      const navGroup = window.document.createElement("div");
+      navGroup.className = "nav-group";
+      
+      const navItems = window.document.createElement("div");
+      navItems.className = "nav-group__items";
+      
+      const chatLink = window.document.createElement("a");
+      chatLink.href = "/chat";
+      chatLink.className = "nav-item active";
+      chatLink.innerHTML = `
+        <span class="nav-item__icon">💬</span>
+        <span class="nav-item__text">Chat</span>
+      `;
+      
+      navItems.appendChild(chatLink);
+      navGroup.appendChild(navItems);
+      sidebar.appendChild(navGroup);
+      window.document.body.appendChild(sidebar);
+      
+      // Create main content area
+      const main = window.document.createElement("main");
+      main.className = "content content--chat";
+      main.innerHTML = "<div>Chat content</div>";
+      window.document.body.appendChild(main);
+      
+      return { sidebar, navItems, chatLink, main };
+    }
+
+    it("should not inject IDE nav when Chat link is missing", () => {
+      window.eval(injectScript);
+      const ideNav = window.document.getElementById("better-gateway-ide-nav");
+      expect(ideNav).toBeNull();
+    });
+
+    it("should inject IDE nav item below Chat", () => {
+      createGatewaySidebar();
+      window.eval(injectScript);
+      
+      const ideNav = window.document.getElementById("better-gateway-ide-nav");
+      expect(ideNav).not.toBeNull();
+      expect(ideNav?.className).toBe("nav-item");
+      expect(ideNav?.getAttribute("href")).toBe("#ide");
+    });
+
+    it("should create IDE nav with correct structure", () => {
+      createGatewaySidebar();
+      window.eval(injectScript);
+      
+      const ideNav = window.document.getElementById("better-gateway-ide-nav");
+      expect(ideNav).not.toBeNull();
+      expect(ideNav?.innerHTML).toContain("nav-item__icon");
+      expect(ideNav?.innerHTML).toContain("nav-item__text");
+      expect(ideNav?.innerHTML).toContain("IDE");
+      expect(ideNav?.innerHTML).toContain("svg"); // Has icon
+    });
+
+    it("should place IDE nav after Chat in nav-group__items", () => {
+      const { navItems } = createGatewaySidebar();
+      window.eval(injectScript);
+      
+      const items = navItems.querySelectorAll(".nav-item");
+      expect(items.length).toBe(2);
+      expect(items[0].getAttribute("href")).toBe("/chat");
+      expect(items[1].getAttribute("href")).toBe("#ide");
+    });
+
+    it.skip("should not inject on standalone IDE page", () => {
+      // SKIP: JSDOM doesn't allow redefining location.pathname
+      // This functionality is tested manually in the browser
+    });
+
+    it("should not inject duplicate IDE nav items", () => {
+      createGatewaySidebar();
+      
+      window.eval(injectScript);
+      window.eval(injectScript);
+      
+      const ideNavs = window.document.querySelectorAll("#better-gateway-ide-nav");
+      expect(ideNavs.length).toBe(1);
+    });
+
+    it("should log injection message to console", () => {
+      const consoleSpy = vi.spyOn(window.console, "log");
+      createGatewaySidebar();
+      
+      window.eval(injectScript);
+      
+      expect(consoleSpy).toHaveBeenCalledWith("[BetterGateway] IDE nav item injected below Chat");
+    });
+
+    it("should create IDE iframe when view is toggled", () => {
+      const { main } = createGatewaySidebar();
+      window.eval(injectScript);
+      
+      const ideNav = window.document.getElementById("better-gateway-ide-nav");
+      ideNav?.click();
+      
+      const ideFrame = window.document.getElementById("better-gateway-ide-frame");
+      expect(ideFrame).not.toBeNull();
+      expect(ideFrame?.tagName).toBe("IFRAME");
+      expect(ideFrame?.getAttribute("src")).toBe("/better-gateway/ide");
+    });
+
+    it("should hide main and show iframe when IDE view is shown", () => {
+      const { main } = createGatewaySidebar();
+      window.eval(injectScript);
+      
+      const ideNav = window.document.getElementById("better-gateway-ide-nav");
+      ideNav?.click();
+      
+      // Main should be hidden, iframe should be visible
+      expect(main.style.display).toBe("none");
+      const ideFrame = window.document.getElementById("better-gateway-ide-frame");
+      expect(ideFrame).not.toBeNull();
+      expect(ideFrame?.style.display).toBe("block");
+    });
+
+    it("should show main and hide iframe when switching back to Chat", () => {
+      const { main } = createGatewaySidebar();
+      window.eval(injectScript);
+      
+      const ideNav = window.document.getElementById("better-gateway-ide-nav");
+      
+      // Switch to IDE
+      ideNav?.click();
+      expect(main.style.display).toBe("none");
+      
+      // Switch back to Chat
+      ideNav?.click();
+      expect(main.style.display).toBe("");
+      const ideFrame = window.document.getElementById("better-gateway-ide-frame");
+      expect(ideFrame?.style.display).toBe("none");
+    });
+
+    it("should update active class when switching views", () => {
+      const { chatLink } = createGatewaySidebar();
+      window.eval(injectScript);
+      
+      const ideNav = window.document.getElementById("better-gateway-ide-nav");
+      
+      // Initially Chat is active
+      expect(chatLink.classList.contains("active")).toBe(true);
+      expect(ideNav?.classList.contains("active")).toBe(false);
+      
+      // Switch to IDE
+      ideNav?.click();
+      expect(chatLink.classList.contains("active")).toBe(false);
+      expect(ideNav?.classList.contains("active")).toBe(true);
+      
+      // Switch back to Chat
+      ideNav?.click();
+      expect(chatLink.classList.contains("active")).toBe(true);
+      expect(ideNav?.classList.contains("active")).toBe(false);
+    });
+  });
 });
