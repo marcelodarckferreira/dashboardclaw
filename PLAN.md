@@ -410,13 +410,13 @@ better-gateway-dev/
     - [x] Handle reconnect and transient disconnect UI states
     - **Acceptance:** user can send message and receive streamed response in-panel without page reload
 
-13. [ ] **Ticket: `@file` mention autocomplete + chips** **← NEXT**
-    - [ ] Type `@` to open file picker from current workspace
-    - [ ] Keyboard navigation + enter to select
-    - [ ] Selected files shown as removable chips above input
+13. [x] **Ticket: `@file` mention autocomplete + chips** ✅ **DONE (2026-02-10)**
+    - [x] Type `@` to open file picker from current workspace
+    - [x] Keyboard navigation + enter to select
+    - [x] Selected files shown as removable chips above input
     - **Acceptance:** at least 3 files can be attached and removed before send
 
-14. [ ] **Ticket: File context injection for chat prompts**
+14. [ ] **Ticket: File context injection for chat prompts** **← NEXT**
     - [ ] Attach referenced file snippets to outbound message payload
     - [ ] Include path + line ranges in injected context
     - [ ] Add truncation guards for large files
