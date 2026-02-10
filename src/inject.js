@@ -1,6 +1,8 @@
 (function () {
   "use strict";
 
+  const INJECT_VERSION = "2026-02-10.4";
+
   const config = window.__BETTER_GATEWAY_CONFIG__ || {
     reconnectIntervalMs: 3000,
     maxReconnectAttempts: 10,
@@ -1152,5 +1154,6 @@
     updateStatus("disconnected", "Offline");
   });
 
-  console.log("[BetterGateway] Auto-reconnect enabled", config);
+  window.__BETTER_GATEWAY_INJECT_VERSION__ = INJECT_VERSION;
+  console.log("[BetterGateway] Auto-reconnect enabled", { ...config, injectVersion: INJECT_VERSION });
 })();
