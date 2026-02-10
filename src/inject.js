@@ -1,7 +1,7 @@
 (function () {
   "use strict";
 
-  const INJECT_VERSION = "2026-02-10.7";
+  const INJECT_VERSION = "2026-02-10.8";
 
   const config = window.__BETTER_GATEWAY_CONFIG__ || {
     reconnectIntervalMs: 3000,
@@ -715,6 +715,16 @@
         .better-gateway-chat-file-option:hover, .better-gateway-chat-file-option.active { background: #2a2d2e; }
         .better-gateway-chat-file-option .path { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
         .better-gateway-chat-file-option .name { color: #8b8b8b; font-size: 11px; }
+        file[path] { display: none !important; }
+        .bg-chat-file-wrapper { margin: 6px 0; }
+        .bg-chat-file-chip { display: inline-flex; align-items: center; gap: 6px; border: 1px solid #2a4a67; background: #1f3347; color: #dbeafe; border-radius: 8px; padding: 6px 12px; cursor: pointer; font-size: 13px; user-select: none; }
+        .bg-chat-file-chip:hover { background: #253d54; }
+        .bg-chat-file-chip .chip-toggle { font-size: 10px; transition: transform 0.2s; display: inline-block; }
+        .bg-chat-file-chip.expanded .chip-toggle { transform: rotate(90deg); }
+        .bg-chat-file-chip .chip-path { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+        .bg-chat-file-chip .chip-truncated { opacity: 0.6; font-size: 11px; }
+        .bg-chat-file-content { display: none; background: #0d1117; border: 1px solid #30363d; border-radius: 6px; padding: 12px; margin: 4px 0 8px; font-family: monospace; font-size: 12px; line-height: 1.5; white-space: pre-wrap; word-break: break-word; max-height: 400px; overflow-y: auto; color: #e6edf3; }
+        .bg-chat-file-content.visible { display: block; }
       `;
       document.head.appendChild(style);
     }
@@ -754,6 +764,77 @@
     renderMentionChips();
   }
 
+  function transformFileBlocksInChat() {
+    var chatArea = document.querySelector("main.content");
+    if (!chatArea) return;
+
+    // Case 1: <file> rendered as DOM elements (hidden by CSS, replaced with chip)
+    var fileEls = chatArea.querySelectorAll("file[path]:not([data-bg-chip])");
+    fileEls.forEach(function (fileEl) {
+      if (fileEl.closest("textarea, input, .better-gateway-chat-file-chips, .better-gateway-chat-file-picker")) return;
+      fileEl.setAttribute("data-bg-chip", "true");
+
+      var path = fileEl.getAttribute("path") || "";
+      var content = fileEl.textContent || "";
+      var truncated = fileEl.getAttribute("truncated") === "true";
+
+      var wrapper = document.createElement("div");
+      wrapper.className = "bg-chat-file-wrapper";
+
+      var chip = document.createElement("div");
+      chip.className = "bg-chat-file-chip";
+      chip.innerHTML = '<span class="chip-toggle">\u25B6</span>'
+        + '<span class="chip-path">' + escapeHtml(path) + '</span>'
+        + (truncated ? '<span class="chip-truncated">(truncated)</span>' : '');
+
+      var contentPanel = document.createElement("pre");
+      contentPanel.className = "bg-chat-file-content";
+      contentPanel.textContent = content;
+
+      chip.addEventListener("click", function () {
+        chip.classList.toggle("expanded");
+        contentPanel.classList.toggle("visible");
+      });
+
+      wrapper.appendChild(chip);
+      wrapper.appendChild(contentPanel);
+      fileEl.parentNode.insertBefore(wrapper, fileEl);
+    });
+
+    // Case 2: <file> escaped as HTML entities in text
+    var candidates = chatArea.querySelectorAll("p:not([data-bg-files-done]), div:not([data-bg-files-done]), span:not([data-bg-files-done])");
+    var escapedRe = /&lt;file path=&quot;([^&]*)&quot;(?:\s*truncated=&quot;(true)&quot;)?&gt;\n?([\s\S]*?)\n?&lt;\/file&gt;/g;
+    for (var i = 0; i < candidates.length; i++) {
+      var el = candidates[i];
+      if (el.closest(".bg-chat-file-wrapper, .better-gateway-chat-file-chips, .better-gateway-chat-file-picker, textarea, input")) continue;
+      var html = el.innerHTML;
+      if (!escapedRe.test(html)) continue;
+      escapedRe.lastIndex = 0;
+      el.setAttribute("data-bg-files-done", "true");
+      el.innerHTML = html.replace(escapedRe, function (_match, path, truncated, content) {
+        var decoded = content.replace(/&amp;/g, "&").replace(/&lt;/g, "<").replace(/&gt;/g, ">").replace(/&quot;/g, '"').replace(/&#39;/g, "'");
+        var t = truncated === "true";
+        return '<div class="bg-chat-file-wrapper">'
+          + '<div class="bg-chat-file-chip"><span class="chip-toggle">\u25B6</span>'
+          + '<span class="chip-path">' + escapeHtml(path) + '</span>'
+          + (t ? '<span class="chip-truncated">(truncated)</span>' : '')
+          + '</div>'
+          + '<pre class="bg-chat-file-content">' + escapeHtml(decoded) + '</pre>'
+          + '</div>';
+      });
+      el.querySelectorAll(".bg-chat-file-chip:not([data-bg-bound])").forEach(function (chip) {
+        chip.setAttribute("data-bg-bound", "true");
+        chip.addEventListener("click", function () {
+          chip.classList.toggle("expanded");
+          var panel = chip.nextElementSibling;
+          if (panel && panel.classList.contains("bg-chat-file-content")) {
+            panel.classList.toggle("visible");
+          }
+        });
+      });
+    }
+  }
+
   function startChatComposerEnhancer() {
     fetchWorkspaceFiles();
     attachChatComposerEnhancements();
@@ -785,10 +866,13 @@
       selectMentionFile(selected.path);
     }, true);
 
+    transformFileBlocksInChat();
+
     if (!document.body) return;
     const observer = new MutationObserver(function () {
       try {
         attachChatComposerEnhancements();
+        transformFileBlocksInChat();
       } catch (_error) {}
     });
     observer.observe(document.body, { childList: true, subtree: true });
