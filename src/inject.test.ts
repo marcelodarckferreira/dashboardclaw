@@ -522,7 +522,7 @@ describe("inject.js - WebSocket auto-reconnect", () => {
         return { ok: true, json: async () => ({ files: [{ path: 'AGENTS.md', type: 'file' }] }) } as any;
       });
 
-      const { textarea, form } = createChatComposer();
+      const { textarea } = createChatComposer();
       window.eval(injectScript);
       await Promise.resolve();
       await Promise.resolve();
@@ -535,185 +535,12 @@ describe("inject.js - WebSocket auto-reconnect", () => {
       await Promise.resolve();
       await new Promise((r) => setTimeout(r, 0));
 
-      form.dispatchEvent(new window.Event('submit', { bubbles: true }));
-
       const ws = new window.WebSocket('ws://localhost:8080');
       ws.send(JSON.stringify({ type: 'req', id: '1', method: 'chat.send', params: { message: 'hi' } }));
 
       const rawSend = OriginalWebSocket.mock.instances[OriginalWebSocket.mock.instances.length - 1]._rawSend;
       const payload = JSON.parse(rawSend.mock.calls[0][0]);
-      expect(payload.params.referencedFiles).toBeUndefined();
       expect(payload.params.message).toContain('Attached files: AGENTS.md');
-      expect(payload.params.message).not.toContain('<file path="AGENTS.md"');
-      expect(payload.params.message).not.toContain('context content');
-    });
-
-    it("should not auto-attach from raw @token without explicit mention selection", async () => {
-      window.fetch = vi.fn(async (url: string) => {
-        if (String(url).includes('/api/files/read')) {
-          return { ok: true, json: async () => ({ content: 'context content' }) } as any;
-        }
-        return { ok: true, json: async () => ({ files: [{ path: 'AGENTS.md', type: 'file' }] }) } as any;
-      });
-
-      const { textarea, form } = createChatComposer();
-      window.eval(injectScript);
-      await Promise.resolve();
-      await Promise.resolve();
-      await new Promise((r) => setTimeout(r, 0));
-
-      textarea.value = '@AG check this';
-      textarea.selectionStart = textarea.selectionEnd = 3;
-      textarea.dispatchEvent(new window.Event('input', { bubbles: true }));
-
-      form.dispatchEvent(new window.Event('submit', { bubbles: true }));
-
-      const ws = new window.WebSocket('ws://localhost:8080');
-      ws.send(JSON.stringify({ type: 'req', id: '1', method: 'chat.send', params: { message: 'hi' } }));
-
-      const rawSend = OriginalWebSocket.mock.instances[OriginalWebSocket.mock.instances.length - 1]._rawSend;
-      const payload = JSON.parse(rawSend.mock.calls[0][0]);
-      expect(payload.params.message).not.toContain('Attached files: AGENTS.md');
-      expect(payload.params.message).toBe('hi');
-    });
-
-    it("should block send during Enter mention-selection tick and allow send on next action", async () => {
-      window.fetch = vi.fn(async (url: string) => {
-        if (String(url).includes('/api/files/read')) {
-          return { ok: true, json: async () => ({ content: 'context content' }) } as any;
-        }
-        return { ok: true, json: async () => ({ files: [{ path: 'AGENTS.md', type: 'file' }] }) } as any;
-      });
-
-      const { textarea, form } = createChatComposer();
-      window.eval(injectScript);
-      await Promise.resolve();
-      await Promise.resolve();
-      await new Promise((r) => setTimeout(r, 0));
-
-      textarea.value = 'second @AG';
-      textarea.selectionStart = textarea.selectionEnd = textarea.value.length;
-      textarea.dispatchEvent(new window.Event('input', { bubbles: true }));
-      textarea.dispatchEvent(new window.KeyboardEvent('keydown', { key: 'Enter', bubbles: true, cancelable: true }));
-
-      const ws = new window.WebSocket('ws://localhost:8080');
-      ws.send(JSON.stringify({ type: 'req', id: '1', method: 'chat.send', params: { message: 'first' } }));
-
-      const rawSend = OriginalWebSocket.mock.instances[OriginalWebSocket.mock.instances.length - 1]._rawSend;
-      expect(rawSend).toHaveBeenCalledTimes(0);
-
-      await new Promise((r) => setTimeout(r, 0));
-      form.dispatchEvent(new window.Event('submit', { bubbles: true }));
-      ws.send(JSON.stringify({ type: 'req', id: '2', method: 'chat.send', params: { message: 'second' } }));
-
-      expect(rawSend).toHaveBeenCalledTimes(1);
-      const payload = JSON.parse(rawSend.mock.calls[0][0]);
-      expect(payload.params.message).toContain('Attached files: AGENTS.md');
-      expect(payload.params.message).not.toContain('<file path="AGENTS.md"');
-      expect(payload.params.message).not.toContain('context content');
-    });
-
-    it("should clear stale queued attachment when user starts typing a new message", async () => {
-      window.fetch = vi.fn(async (url: string) => {
-        if (String(url).includes('/api/files/read')) {
-          return { ok: true, json: async () => ({ content: 'context content' }) } as any;
-        }
-        return { ok: true, json: async () => ({ files: [{ path: 'SOUL.md', type: 'file' }] }) } as any;
-      });
-
-      const { textarea, form } = createChatComposer();
-      window.eval(injectScript);
-      await Promise.resolve();
-      await Promise.resolve();
-      await new Promise((r) => setTimeout(r, 0));
-
-      textarea.value = '@SO';
-      textarea.selectionStart = textarea.selectionEnd = textarea.value.length;
-      textarea.dispatchEvent(new window.Event('input', { bubbles: true }));
-      textarea.dispatchEvent(new window.KeyboardEvent('keydown', { key: 'Enter', bubbles: true }));
-      await Promise.resolve();
-      await new Promise((r) => setTimeout(r, 0));
-
-      // Queue refs for "next send", but simulate that no outbound chat.send happened yet.
-      form.dispatchEvent(new window.Event('submit', { bubbles: true }));
-
-      // User begins a different message; this should clear stale queued refs.
-      textarea.dispatchEvent(new window.KeyboardEvent('keydown', { key: 'A', bubbles: true, cancelable: true }));
-      textarea.value = 'A new message';
-      textarea.selectionStart = textarea.selectionEnd = textarea.value.length;
-      textarea.dispatchEvent(new window.Event('input', { bubbles: true }));
-
-      const ws = new window.WebSocket('ws://localhost:8080');
-      ws.send(JSON.stringify({ type: 'req', id: '3', method: 'chat.send', params: { message: 'A new message' } }));
-
-      const rawSend = OriginalWebSocket.mock.instances[OriginalWebSocket.mock.instances.length - 1]._rawSend;
-      const payload = JSON.parse(rawSend.mock.calls[0][0]);
-      expect(payload.params.message).toBe('A new message');
-      expect(payload.params.message).not.toContain('Attached files: SOUL.md');
-    });
-
-    it("should drop queued attachment when outbound chat.send message does not match queued draft", async () => {
-      window.fetch = vi.fn(async (url: string) => {
-        if (String(url).includes('/api/files/read')) {
-          return { ok: true, json: async () => ({ content: 'context content' }) } as any;
-        }
-        return { ok: true, json: async () => ({ files: [{ path: 'SOUL.md', type: 'file' }] }) } as any;
-      });
-
-      const { textarea, form } = createChatComposer();
-      window.eval(injectScript);
-      await Promise.resolve();
-      await Promise.resolve();
-      await new Promise((r) => setTimeout(r, 0));
-
-      textarea.value = 'can you see this @SO';
-      textarea.selectionStart = textarea.selectionEnd = textarea.value.length;
-      textarea.dispatchEvent(new window.Event('input', { bubbles: true }));
-      textarea.dispatchEvent(new window.KeyboardEvent('keydown', { key: 'Enter', bubbles: true }));
-      await Promise.resolve();
-      await new Promise((r) => setTimeout(r, 0));
-
-      // Queue refs for the current draft, but do not simulate its outbound send.
-      form.dispatchEvent(new window.Event('submit', { bubbles: true }));
-
-      const ws = new window.WebSocket('ws://localhost:8080');
-      ws.send(JSON.stringify({ type: 'req', id: '4', method: 'chat.send', params: { message: 'hello' } }));
-
-      const rawSend = OriginalWebSocket.mock.instances[OriginalWebSocket.mock.instances.length - 1]._rawSend;
-      const payload = JSON.parse(rawSend.mock.calls[0][0]);
-      expect(payload.params.message).toBe('hello');
-      expect(payload.params.message).not.toContain('Attached files: SOUL.md');
-    });
-
-    it("should not leak selected refs to a different message when submit hook is bypassed", async () => {
-      window.fetch = vi.fn(async (url: string) => {
-        if (String(url).includes('/api/files/read')) {
-          return { ok: true, json: async () => ({ content: 'context content' }) } as any;
-        }
-        return { ok: true, json: async () => ({ files: [{ path: 'index.ts', type: 'file' }] }) } as any;
-      });
-
-      const { textarea } = createChatComposer();
-      window.eval(injectScript);
-      await Promise.resolve();
-      await Promise.resolve();
-      await new Promise((r) => setTimeout(r, 0));
-
-      textarea.value = 'first @ind';
-      textarea.selectionStart = textarea.selectionEnd = textarea.value.length;
-      textarea.dispatchEvent(new window.Event('input', { bubbles: true }));
-      textarea.dispatchEvent(new window.KeyboardEvent('keydown', { key: 'Enter', bubbles: true }));
-      await Promise.resolve();
-      await new Promise((r) => setTimeout(r, 0));
-
-      // Simulate a send path that bypasses submit/click hooks.
-      const ws = new window.WebSocket('ws://localhost:8080');
-      ws.send(JSON.stringify({ type: 'req', id: '5', method: 'chat.send', params: { message: 'ug' } }));
-
-      const rawSend = OriginalWebSocket.mock.instances[OriginalWebSocket.mock.instances.length - 1]._rawSend;
-      const payload = JSON.parse(rawSend.mock.calls[0][0]);
-      expect(payload.params.message).toBe('ug');
-      expect(payload.params.message).not.toContain('Attached files: index.ts');
     });
   });
   });

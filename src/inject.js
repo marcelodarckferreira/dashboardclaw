@@ -1,7 +1,7 @@
 (function () {
   "use strict";
 
-  const INJECT_VERSION = "2026-02-10.4";
+  const INJECT_VERSION = "2026-02-10.5";
 
   const config = window.__BETTER_GATEWAY_CONFIG__ || {
     reconnectIntervalMs: 3000,
@@ -458,108 +458,10 @@
     pickerItems: [],
     activeIndex: 0,
     mentionRange: null,
-    pendingPayloadRefs: null,
-    pendingMessageText: null,
-    selectedDraftText: null,
-    suppressNextSubmit: false,
-    mode: "composing",
-    selectionEpoch: 0,
-    sendBlockedUntil: 0,
-    debug: Boolean(window.__BETTER_GATEWAY_DEBUG_MENTIONS__),
   };
 
   const FILE_CONTEXT_CHAR_LIMIT = 6000;
   const TOTAL_CONTEXT_CHAR_LIMIT = 18000;
-  const ENTER_SEND_BLOCK_WINDOW_MS = 150;
-
-  function mentionDebug(event, details) {
-    if (!mentionState.debug || !console || typeof console.debug !== "function") return;
-    console.debug("[BetterGateway][mentions]", event, details || {});
-  }
-
-  function beginMentionSelection(reason) {
-    mentionState.mode = "mentionSelecting";
-    mentionState.selectionEpoch += 1;
-    mentionState.sendBlockedUntil = Date.now() + ENTER_SEND_BLOCK_WINDOW_MS;
-    mentionDebug("mode:mentionSelecting", { reason, epoch: mentionState.selectionEpoch });
-    return mentionState.selectionEpoch;
-  }
-
-  function endMentionSelection(epoch, reason) {
-    setTimeout(function () {
-      if (epoch !== mentionState.selectionEpoch) return;
-      mentionState.mode = "composing";
-      mentionState.sendBlockedUntil = 0;
-      mentionDebug("mode:composing", { reason, epoch });
-    }, 0);
-  }
-
-  function isSendBlockedForMentionSelection() {
-    if (mentionState.mode === "mentionSelecting") return true;
-    return mentionState.sendBlockedUntil > Date.now();
-  }
-
-  function clearPendingPayloadRefs(reason) {
-    if ((!mentionState.pendingPayloadRefs || mentionState.pendingPayloadRefs.length === 0) && mentionState.pendingMessageText === null) {
-      return;
-    }
-    mentionDebug("pending-refs:cleared", {
-      reason,
-      count: mentionState.pendingPayloadRefs ? mentionState.pendingPayloadRefs.length : 0,
-    });
-    mentionState.pendingPayloadRefs = null;
-    mentionState.pendingMessageText = null;
-  }
-
-  function isTextEditingKey(event) {
-    const key = event && event.key ? String(event.key) : "";
-    if (!key) return false;
-    if (event.metaKey || event.ctrlKey || event.altKey) return false;
-    if (key.length === 1) return true;
-    return key === "Backspace" || key === "Delete";
-  }
-
-  function normalizeMessageText(value) {
-    return String(value || "").replace(/\r\n/g, "\n").trim();
-  }
-
-  function updateSelectedDraftText() {
-    if (!mentionState.textarea || mentionState.selected.length === 0) {
-      mentionState.selectedDraftText = null;
-      return;
-    }
-    mentionState.selectedDraftText = normalizeMessageText(mentionState.textarea.value);
-  }
-
-  function resolveMentionByEnter(textarea, source) {
-    const liveRange = findMentionRange(textarea.value, textarea.selectionStart || 0);
-    if (!mentionState.pickerOpen && !liveRange) return false;
-
-    mentionState.textarea = textarea;
-    if (!mentionState.pickerOpen && liveRange) {
-      refreshMentionPicker();
-    }
-
-    const selected = mentionState.pickerItems[mentionState.activeIndex] || mentionState.pickerItems[0];
-    if (!selected) return false;
-
-    const epoch = beginMentionSelection(source);
-    mentionState.suppressNextSubmit = true;
-    setTimeout(function () {
-      mentionState.suppressNextSubmit = false;
-    }, 0);
-
-    selectMentionFile(selected.path);
-    endMentionSelection(epoch, source + ":resolved");
-    return true;
-  }
-
-  function blockEvent(event, reason) {
-    mentionDebug("block-event", { type: event.type, reason });
-    event.preventDefault();
-    event.stopPropagation();
-    if (typeof event.stopImmediatePropagation === "function") event.stopImmediatePropagation();
-  }
 
   function escapeHtml(value) {
     return String(value || "")
@@ -593,22 +495,6 @@
     const query = match[2] || "";
     const atIndex = cursorIndex - token.length + token.lastIndexOf("@");
     return { start: atIndex, end: cursorIndex, query };
-  }
-
-  function extractTrailingMentionQuery(value) {
-    const text = String(value || "");
-    const match = text.match(/(?:^|\s)@([^\s@.,!?;:]*)$/);
-    if (!match) return null;
-    return match[1] || "";
-  }
-
-  function extractMessageTextFromParams(params) {
-    if (!params || typeof params !== "object") return null;
-    const candidates = [params.message, params.text, params.input, params.prompt, params.query];
-    for (const value of candidates) {
-      if (typeof value === "string") return value;
-    }
-    return null;
   }
 
   function getMentionCandidates(query) {
@@ -677,7 +563,6 @@
       chip.innerHTML = '<span class="chip-path">' + escapeHtml(entry.path) + '</span><span class="chip-remove" aria-hidden="true">×</span>';
       chip.addEventListener("click", function () {
         mentionState.selected = mentionState.selected.filter((item) => item.path !== entry.path);
-        updateSelectedDraftText();
         renderMentionChips();
         refreshMentionPicker();
       });
@@ -721,7 +606,6 @@
 
     let context = { path, content: "", truncated: false, error: "pending" };
     mentionState.selected.push(context);
-    updateSelectedDraftText();
     renderMentionChips();
 
     const range = mentionState.mentionRange;
@@ -733,7 +617,6 @@
 
     closeMentionPicker();
     if (mentionState.textarea) mentionState.textarea.focus();
-    updateSelectedDraftText();
 
     try {
       const loaded = await readFileContext(path);
@@ -773,50 +656,6 @@
     return output;
   }
 
-  function consumePendingFileRefs(outgoingMessageText) {
-    const hasPendingRefs = mentionState.pendingPayloadRefs && mentionState.pendingPayloadRefs.length > 0;
-    if (!hasPendingRefs) {
-      mentionState.pendingMessageText = null;
-      return [];
-    }
-    if (hasPendingRefs && mentionState.pendingMessageText !== null) {
-      const expected = mentionState.pendingMessageText;
-      const actual = normalizeMessageText(outgoingMessageText);
-      if (actual !== expected) {
-        mentionDebug("pending-refs:dropped-mismatch", { expected, actual });
-        clearPendingPayloadRefs("message-mismatch");
-        return [];
-      }
-    }
-
-    const refs = mentionState.pendingPayloadRefs;
-    mentionState.pendingPayloadRefs = null;
-    mentionState.pendingMessageText = null;
-    return prepareFileRefsForMessage(refs);
-  }
-
-  function consumeSelectedFileRefs(outgoingMessageText) {
-    if (!mentionState.selected || mentionState.selected.length === 0) return [];
-
-    if (mentionState.selectedDraftText !== null) {
-      const expected = mentionState.selectedDraftText;
-      const actual = normalizeMessageText(outgoingMessageText);
-      if (actual !== expected) {
-        mentionDebug("selected-refs:dropped-mismatch", { expected, actual });
-        mentionState.selected = [];
-        mentionState.selectedDraftText = null;
-        renderMentionChips();
-        return [];
-      }
-    }
-
-    const refs = mentionState.selected.map(function (entry) { return { ...entry }; });
-    mentionState.selected = [];
-    mentionState.selectedDraftText = null;
-    renderMentionChips();
-    return prepareFileRefsForMessage(refs);
-  }
-
   function buildMessageWithFileRefs(baseMessage, fileRefs) {
     const body = String(baseMessage || "");
     if (!fileRefs || fileRefs.length === 0) return body;
@@ -832,16 +671,6 @@
       .join(", ");
     if (!summary) return body;
     return body + "\n\nAttached files: " + summary;
-  }
-
-  function queuePendingRefsForNextSend(currentMessageText) {
-    if (!mentionState.selected.length) return;
-    mentionState.pendingPayloadRefs = mentionState.selected.map(function (entry) { return { ...entry }; });
-    mentionState.pendingMessageText = normalizeMessageText(currentMessageText);
-    mentionState.selected = [];
-    mentionState.selectedDraftText = null;
-    renderMentionChips();
-    closeMentionPicker();
   }
 
   function attachChatComposerEnhancements() {
@@ -890,24 +719,10 @@
     mentionState.composer.style.position = mentionState.composer.style.position || "relative";
 
     textarea.addEventListener("input", function () {
-      if (mentionState.selected.length > 0) {
-        updateSelectedDraftText();
-      }
       refreshMentionPicker();
     });
     textarea.addEventListener("click", refreshMentionPicker);
     textarea.addEventListener("keydown", function (event) {
-      const liveRange = findMentionRange(textarea.value, textarea.selectionStart || 0);
-      if (isTextEditingKey(event)) {
-        clearPendingPayloadRefs("new-input");
-      }
-      mentionDebug("textarea:keydown", {
-        key: event.key,
-        shiftKey: event.shiftKey,
-        pickerOpen: mentionState.pickerOpen,
-        hasRange: Boolean(liveRange),
-      });
-
       if (event.key === "ArrowDown" && mentionState.pickerOpen) {
         event.preventDefault();
         mentionState.activeIndex = (mentionState.activeIndex + 1) % mentionState.pickerItems.length;
@@ -926,116 +741,36 @@
         return;
       }
 
-      if (event.key === "Enter" && !event.shiftKey && (mentionState.pickerOpen || liveRange)) {
-        if (resolveMentionByEnter(textarea, "textarea-keydown")) {
-          blockEvent(event, "textarea-enter-select");
+      if (event.key === "Enter" && !event.shiftKey) {
+        var liveRange = findMentionRange(textarea.value, textarea.selectionStart || 0);
+        if (mentionState.pickerOpen || liveRange) {
+          event.preventDefault();
+          event.stopPropagation();
+          if (typeof event.stopImmediatePropagation === "function") event.stopImmediatePropagation();
+          if (!mentionState.pickerOpen && liveRange) {
+            refreshMentionPicker();
+          }
+          var selected = mentionState.pickerItems[mentionState.activeIndex] || mentionState.pickerItems[0];
+          if (selected) {
+            selectMentionFile(selected.path);
+          }
           return;
         }
       }
 
       if (event.key === "Backspace" && !textarea.value && mentionState.selected.length > 0) {
         mentionState.selected.pop();
-        updateSelectedDraftText();
         renderMentionChips();
         return;
       }
-
-      if (event.key === "Enter" && !event.shiftKey) {
-        if (isSendBlockedForMentionSelection()) {
-          blockEvent(event, "textarea-enter-blocked");
-          return;
-        }
-        queuePendingRefsForNextSend(textarea.value);
-      }
     }, true);
-
-    const form = textarea.closest("form");
-    if (form) {
-      form.addEventListener("submit", function (event) {
-        mentionDebug("form:submit", {
-          suppressNextSubmit: mentionState.suppressNextSubmit,
-          mode: mentionState.mode,
-          blocked: isSendBlockedForMentionSelection(),
-        });
-        if (mentionState.suppressNextSubmit || isSendBlockedForMentionSelection()) {
-          mentionState.suppressNextSubmit = false;
-          blockEvent(event, "form-submit-blocked");
-          return;
-        }
-        const liveRange = findMentionRange(textarea.value, textarea.selectionStart || 0);
-        if (mentionState.pickerOpen && !liveRange) {
-          closeMentionPicker();
-        }
-        queuePendingRefsForNextSend(textarea.value);
-      }, true);
-    }
-
-    const sendButton = mentionState.composer.querySelector('button[type="submit"]');
-    if (sendButton) {
-      sendButton.addEventListener("click", function (event) {
-        mentionDebug("send-button:click", { blocked: isSendBlockedForMentionSelection(), mode: mentionState.mode });
-        if (isSendBlockedForMentionSelection()) {
-          blockEvent(event, "send-click-blocked");
-          return;
-        }
-        queuePendingRefsForNextSend(textarea.value);
-      }, true);
-    }
 
     renderMentionChips();
-  }
-
-  function attachGlobalMentionGuards() {
-    if (attachGlobalMentionGuards._installed) return;
-    attachGlobalMentionGuards._installed = true;
-
-    window.addEventListener("keydown", function (event) {
-      mentionDebug("global:keydown", { key: event.key, target: event.target && event.target.tagName });
-      if (event.key !== "Enter" || event.shiftKey) return;
-      const target = event.target;
-      if (!target || target.tagName !== "TEXTAREA") return;
-      const textarea = target;
-      const inMain = textarea.closest && textarea.closest("main.content");
-      if (!inMain) return;
-
-      if (resolveMentionByEnter(textarea, "global-keydown")) {
-        blockEvent(event, "global-enter-select");
-        return;
-      }
-
-      if (isSendBlockedForMentionSelection()) {
-        blockEvent(event, "global-enter-blocked");
-      }
-    }, true);
-
-    window.addEventListener("keypress", function (event) {
-      mentionDebug("global:keypress", { key: event.key, target: event.target && event.target.tagName });
-    }, true);
-
-    window.addEventListener("keyup", function (event) {
-      mentionDebug("global:keyup", { key: event.key, target: event.target && event.target.tagName });
-    }, true);
-
-    window.addEventListener("submit", function (event) {
-      mentionDebug("global:submit", { target: event.target && event.target.tagName, blocked: isSendBlockedForMentionSelection() });
-      const form = event.target;
-      if (!form || !form.querySelector) return;
-      const textarea = form.querySelector("textarea");
-      if (!textarea) return;
-      const inMain = textarea.closest && textarea.closest("main.content");
-      if (!inMain) return;
-
-      if (mentionState.suppressNextSubmit || isSendBlockedForMentionSelection()) {
-        mentionState.suppressNextSubmit = false;
-        blockEvent(event, "global-submit-blocked");
-      }
-    }, true);
   }
 
   function startChatComposerEnhancer() {
     fetchWorkspaceFiles();
     attachChatComposerEnhancements();
-    attachGlobalMentionGuards();
     if (!document.body) return;
     const observer = new MutationObserver(function () {
       try {
@@ -1089,18 +824,12 @@
       if (originalSend) {
         ws.send = function (data) {
           try {
-            if (typeof data === "string") {
+            if (typeof data === "string" && mentionState.selected.length > 0) {
               const frame = JSON.parse(data);
               if (frame && frame.type === "req" && frame.method === "chat.send" && frame.params) {
-                if (isSendBlockedForMentionSelection()) {
-                  mentionDebug("ws:send-blocked", { reason: "mention-selection", method: frame.method });
-                  return;
-                }
-                const outgoingMessageText = extractMessageTextFromParams(frame.params);
-                let fileRefs = consumePendingFileRefs(outgoingMessageText);
-                if (fileRefs.length === 0) {
-                  fileRefs = consumeSelectedFileRefs(outgoingMessageText);
-                }
+                const fileRefs = prepareFileRefsForMessage(mentionState.selected);
+                mentionState.selected = [];
+                renderMentionChips();
                 if (fileRefs.length > 0) {
                   if (typeof frame.params.message === "string") {
                     frame.params.message = buildMessageWithFileRefs(frame.params.message, fileRefs);
