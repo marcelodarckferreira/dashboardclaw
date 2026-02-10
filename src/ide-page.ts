@@ -240,6 +240,60 @@ export function generateIdePage(config: Partial<IdePageConfig> = {}): string {
       color: var(--text-muted);
     }
     
+    #open-editors {
+      border-bottom: 1px solid var(--border-color);
+      max-height: 180px;
+      overflow-y: auto;
+    }
+
+    #open-editors:empty {
+      display: none;
+    }
+
+    .open-editor-item {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 4px 12px;
+      cursor: pointer;
+      font-size: 12px;
+      color: var(--text-secondary);
+      user-select: none;
+    }
+
+    .open-editor-item:hover {
+      background: var(--bg-hover);
+      color: var(--text-primary);
+    }
+
+    .open-editor-item.active {
+      background: var(--bg-active);
+      color: var(--text-primary);
+    }
+
+    .open-editor-item .name {
+      flex: 1;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    .open-editor-item .close {
+      background: transparent;
+      border: none;
+      color: var(--text-muted);
+      cursor: pointer;
+      border-radius: 4px;
+      padding: 0 4px;
+      font-size: 13px;
+      line-height: 1.1;
+    }
+
+    .open-editor-item .close:hover {
+      background: var(--bg-active);
+      color: var(--text-primary);
+    }
+
     #file-tree {
       flex: 1;
       overflow-y: auto;
@@ -578,6 +632,7 @@ export function generateIdePage(config: Partial<IdePageConfig> = {}): string {
         <div id="file-search-container">
           <input type="text" id="file-search" placeholder="Search files... (Ctrl+P)" />
         </div>
+        <div id="open-editors"></div>
         <div id="file-tree"></div>
       </div>
       
@@ -630,6 +685,7 @@ export function generateIdePage(config: Partial<IdePageConfig> = {}): string {
     const elements = {
       loading: document.getElementById('loading'),
       fileTree: document.getElementById('file-tree'),
+      openEditors: document.getElementById('open-editors'),
       tabBar: document.getElementById('tab-bar'),
       editorContainer: document.getElementById('editor-container'),
       welcome: document.getElementById('welcome'),
@@ -844,6 +900,35 @@ export function generateIdePage(config: Partial<IdePageConfig> = {}): string {
       });
     }
     
+    function renderOpenEditors() {
+      const container = elements.openEditors;
+      container.innerHTML = '';
+      
+      if (state.openTabs.length === 0) return;
+      
+      for (const path of state.openTabs) {
+        const item = document.createElement('div');
+        item.className = 'open-editor-item' + (path === state.activeTab ? ' active' : '');
+        item.dataset.path = path;
+        const name = path.split('/').pop();
+        const icon = getFileIcon(name, 'file');
+        const modifiedDot = state.unsavedChanges.has(path) ? ' •' : '';
+        
+        item.innerHTML =
+          '<span class="icon">' + icon + '</span>' +
+          '<span class="name" title="' + path + '">' + name + modifiedDot + '</span>' +
+          '<button class="close" title="Close">×</button>';
+        
+        item.addEventListener('click', () => switchToTab(path));
+        item.querySelector('.close').addEventListener('click', (e) => {
+          e.stopPropagation();
+          closeTab(path);
+        });
+        
+        container.appendChild(item);
+      }
+    }
+    
     // ==================== Tabs ====================
     
     // Tab drag state
@@ -851,6 +936,7 @@ export function generateIdePage(config: Partial<IdePageConfig> = {}): string {
     
     function renderTabs() {
       elements.tabBar.innerHTML = '';
+      renderOpenEditors();
       
       for (const path of state.openTabs) {
         const tab = document.createElement('button');
