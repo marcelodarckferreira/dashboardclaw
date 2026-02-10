@@ -290,28 +290,30 @@ better-gateway-dev/
 ## Implementation Order
 
 ### Week 1: File API + Basic Editor
-1. [ ] Add file API routes (list, read, write)
-2. [ ] Create IDE page with Monaco (CDN)
-3. [ ] Implement file tree component
-4. [ ] Basic editor tabs
+1. [x] Add file API routes (list, read, write, delete, mkdir) ✅ **DONE**
+2. [x] Add comprehensive test suite (69 tests) ✅ **DONE**
+3. [x] Add GitHub Actions CI/CD workflow ✅ **DONE**
+4. [ ] Create IDE page with Monaco (CDN)
+5. [ ] Implement file tree component
+6. [ ] Basic editor tabs
 
 ### Week 2: Gateway Integration
-5. [ ] Inject "IDE" link/tab in gateway sidebar
-6. [ ] Style consistency with gateway UI
-7. [ ] Keyboard shortcuts (Ctrl+S save, etc.)
-8. [ ] localStorage state persistence
+7. [ ] Inject "IDE" link/tab in gateway sidebar
+8. [ ] Style consistency with gateway UI
+9. [ ] Keyboard shortcuts (Ctrl+S save, etc.)
+10. [ ] localStorage state persistence
 
 ### Week 3: Chat Integration
-9. [ ] `@file` mention autocomplete
-10. [ ] File content injection in messages
-11. [ ] Real-time file change updates
-12. [ ] Selection-to-chat flow
+11. [ ] `@file` mention autocomplete
+12. [ ] File content injection in messages
+13. [ ] Real-time file change updates
+14. [ ] Selection-to-chat flow
 
 ### Week 4: Polish
-13. [ ] Split view layout
-14. [ ] Search across files
-15. [ ] Error handling & edge cases
-16. [ ] Documentation & README update
+15. [ ] Split view layout
+16. [ ] Search across files
+17. [ ] Error handling & edge cases
+18. [ ] Documentation & README update
 
 ---
 
