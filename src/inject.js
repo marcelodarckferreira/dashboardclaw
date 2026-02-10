@@ -458,6 +458,7 @@
     mentionRange: null,
     pendingPayloadRefs: null,
     pendingMessageText: null,
+    selectedDraftText: null,
     suppressNextSubmit: false,
     mode: "composing",
     selectionEpoch: 0,
@@ -518,6 +519,14 @@
 
   function normalizeMessageText(value) {
     return String(value || "").replace(/\r\n/g, "\n").trim();
+  }
+
+  function updateSelectedDraftText() {
+    if (!mentionState.textarea || mentionState.selected.length === 0) {
+      mentionState.selectedDraftText = null;
+      return;
+    }
+    mentionState.selectedDraftText = normalizeMessageText(mentionState.textarea.value);
   }
 
   function resolveMentionByEnter(textarea, source) {
@@ -666,6 +675,7 @@
       chip.innerHTML = '<span class="chip-path">' + escapeHtml(entry.path) + '</span><span class="chip-remove" aria-hidden="true">×</span>';
       chip.addEventListener("click", function () {
         mentionState.selected = mentionState.selected.filter((item) => item.path !== entry.path);
+        updateSelectedDraftText();
         renderMentionChips();
         refreshMentionPicker();
       });
@@ -709,6 +719,7 @@
 
     let context = { path, content: "", truncated: false, error: "pending" };
     mentionState.selected.push(context);
+    updateSelectedDraftText();
     renderMentionChips();
 
     const range = mentionState.mentionRange;
@@ -720,6 +731,7 @@
 
     closeMentionPicker();
     if (mentionState.textarea) mentionState.textarea.focus();
+    updateSelectedDraftText();
 
     try {
       const loaded = await readFileContext(path);
@@ -736,21 +748,7 @@
     renderMentionChips();
   }
 
-  function consumePendingFileRefs(outgoingMessageText) {
-    const hasPendingRefs = mentionState.pendingPayloadRefs && mentionState.pendingPayloadRefs.length > 0;
-    if (hasPendingRefs && mentionState.pendingMessageText !== null) {
-      const expected = mentionState.pendingMessageText;
-      const actual = normalizeMessageText(outgoingMessageText);
-      if (actual !== expected) {
-        mentionDebug("pending-refs:dropped-mismatch", { expected, actual });
-        clearPendingPayloadRefs("message-mismatch");
-        return [];
-      }
-    }
-
-    const refs = hasPendingRefs ? mentionState.pendingPayloadRefs : mentionState.selected;
-    mentionState.pendingPayloadRefs = null;
-    mentionState.pendingMessageText = null;
+  function prepareFileRefsForMessage(refs) {
     if (!refs || refs.length === 0) return [];
 
     let remaining = TOTAL_CONTEXT_CHAR_LIMIT;
@@ -770,9 +768,51 @@
       });
       remaining -= slice.length;
     });
-    mentionState.selected = [];
-    renderMentionChips();
     return output;
+  }
+
+  function consumePendingFileRefs(outgoingMessageText) {
+    const hasPendingRefs = mentionState.pendingPayloadRefs && mentionState.pendingPayloadRefs.length > 0;
+    if (!hasPendingRefs) {
+      mentionState.pendingMessageText = null;
+      return [];
+    }
+    if (hasPendingRefs && mentionState.pendingMessageText !== null) {
+      const expected = mentionState.pendingMessageText;
+      const actual = normalizeMessageText(outgoingMessageText);
+      if (actual !== expected) {
+        mentionDebug("pending-refs:dropped-mismatch", { expected, actual });
+        clearPendingPayloadRefs("message-mismatch");
+        return [];
+      }
+    }
+
+    const refs = mentionState.pendingPayloadRefs;
+    mentionState.pendingPayloadRefs = null;
+    mentionState.pendingMessageText = null;
+    return prepareFileRefsForMessage(refs);
+  }
+
+  function consumeSelectedFileRefs(outgoingMessageText) {
+    if (!mentionState.selected || mentionState.selected.length === 0) return [];
+
+    if (mentionState.selectedDraftText !== null) {
+      const expected = mentionState.selectedDraftText;
+      const actual = normalizeMessageText(outgoingMessageText);
+      if (actual !== expected) {
+        mentionDebug("selected-refs:dropped-mismatch", { expected, actual });
+        mentionState.selected = [];
+        mentionState.selectedDraftText = null;
+        renderMentionChips();
+        return [];
+      }
+    }
+
+    const refs = mentionState.selected.map(function (entry) { return { ...entry }; });
+    mentionState.selected = [];
+    mentionState.selectedDraftText = null;
+    renderMentionChips();
+    return prepareFileRefsForMessage(refs);
   }
 
   function buildMessageWithFileRefs(baseMessage, fileRefs) {
@@ -797,6 +837,7 @@
     mentionState.pendingPayloadRefs = mentionState.selected.map(function (entry) { return { ...entry }; });
     mentionState.pendingMessageText = normalizeMessageText(currentMessageText);
     mentionState.selected = [];
+    mentionState.selectedDraftText = null;
     renderMentionChips();
     closeMentionPicker();
   }
@@ -846,7 +887,12 @@
 
     mentionState.composer.style.position = mentionState.composer.style.position || "relative";
 
-    textarea.addEventListener("input", refreshMentionPicker);
+    textarea.addEventListener("input", function () {
+      if (mentionState.selected.length > 0) {
+        updateSelectedDraftText();
+      }
+      refreshMentionPicker();
+    });
     textarea.addEventListener("click", refreshMentionPicker);
     textarea.addEventListener("keydown", function (event) {
       const liveRange = findMentionRange(textarea.value, textarea.selectionStart || 0);
@@ -887,6 +933,7 @@
 
       if (event.key === "Backspace" && !textarea.value && mentionState.selected.length > 0) {
         mentionState.selected.pop();
+        updateSelectedDraftText();
         renderMentionChips();
         return;
       }
@@ -1048,7 +1095,10 @@
                   return;
                 }
                 const outgoingMessageText = extractMessageTextFromParams(frame.params);
-                const fileRefs = consumePendingFileRefs(outgoingMessageText);
+                let fileRefs = consumePendingFileRefs(outgoingMessageText);
+                if (fileRefs.length === 0) {
+                  fileRefs = consumeSelectedFileRefs(outgoingMessageText);
+                }
                 if (fileRefs.length > 0) {
                   if (typeof frame.params.message === "string") {
                     frame.params.message = buildMessageWithFileRefs(frame.params.message, fileRefs);

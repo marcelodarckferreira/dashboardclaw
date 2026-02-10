@@ -684,6 +684,37 @@ describe("inject.js - WebSocket auto-reconnect", () => {
       expect(payload.params.message).toBe('hello');
       expect(payload.params.message).not.toContain('Attached files: SOUL.md');
     });
+
+    it("should not leak selected refs to a different message when submit hook is bypassed", async () => {
+      window.fetch = vi.fn(async (url: string) => {
+        if (String(url).includes('/api/files/read')) {
+          return { ok: true, json: async () => ({ content: 'context content' }) } as any;
+        }
+        return { ok: true, json: async () => ({ files: [{ path: 'index.ts', type: 'file' }] }) } as any;
+      });
+
+      const { textarea } = createChatComposer();
+      window.eval(injectScript);
+      await Promise.resolve();
+      await Promise.resolve();
+      await new Promise((r) => setTimeout(r, 0));
+
+      textarea.value = 'first @ind';
+      textarea.selectionStart = textarea.selectionEnd = textarea.value.length;
+      textarea.dispatchEvent(new window.Event('input', { bubbles: true }));
+      textarea.dispatchEvent(new window.KeyboardEvent('keydown', { key: 'Enter', bubbles: true }));
+      await Promise.resolve();
+      await new Promise((r) => setTimeout(r, 0));
+
+      // Simulate a send path that bypasses submit/click hooks.
+      const ws = new window.WebSocket('ws://localhost:8080');
+      ws.send(JSON.stringify({ type: 'req', id: '5', method: 'chat.send', params: { message: 'ug' } }));
+
+      const rawSend = OriginalWebSocket.mock.instances[OriginalWebSocket.mock.instances.length - 1]._rawSend;
+      const payload = JSON.parse(rawSend.mock.calls[0][0]);
+      expect(payload.params.message).toBe('ug');
+      expect(payload.params.message).not.toContain('Attached files: index.ts');
+    });
   });
   });
 });
