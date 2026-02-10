@@ -457,6 +457,7 @@
     activeIndex: 0,
     mentionRange: null,
     pendingPayloadRefs: null,
+    pendingMessageText: null,
     suppressNextSubmit: false,
     mode: "composing",
     selectionEpoch: 0,
@@ -496,9 +497,15 @@
   }
 
   function clearPendingPayloadRefs(reason) {
-    if (!mentionState.pendingPayloadRefs || mentionState.pendingPayloadRefs.length === 0) return;
-    mentionDebug("pending-refs:cleared", { reason, count: mentionState.pendingPayloadRefs.length });
+    if ((!mentionState.pendingPayloadRefs || mentionState.pendingPayloadRefs.length === 0) && mentionState.pendingMessageText === null) {
+      return;
+    }
+    mentionDebug("pending-refs:cleared", {
+      reason,
+      count: mentionState.pendingPayloadRefs ? mentionState.pendingPayloadRefs.length : 0,
+    });
     mentionState.pendingPayloadRefs = null;
+    mentionState.pendingMessageText = null;
   }
 
   function isTextEditingKey(event) {
@@ -507,6 +514,10 @@
     if (event.metaKey || event.ctrlKey || event.altKey) return false;
     if (key.length === 1) return true;
     return key === "Backspace" || key === "Delete";
+  }
+
+  function normalizeMessageText(value) {
+    return String(value || "").replace(/\r\n/g, "\n").trim();
   }
 
   function resolveMentionByEnter(textarea, source) {
@@ -725,11 +736,21 @@
     renderMentionChips();
   }
 
-  function consumePendingFileRefs() {
-    const refs = mentionState.pendingPayloadRefs && mentionState.pendingPayloadRefs.length
-      ? mentionState.pendingPayloadRefs
-      : mentionState.selected;
+  function consumePendingFileRefs(outgoingMessageText) {
+    const hasPendingRefs = mentionState.pendingPayloadRefs && mentionState.pendingPayloadRefs.length > 0;
+    if (hasPendingRefs && mentionState.pendingMessageText !== null) {
+      const expected = mentionState.pendingMessageText;
+      const actual = normalizeMessageText(outgoingMessageText);
+      if (actual !== expected) {
+        mentionDebug("pending-refs:dropped-mismatch", { expected, actual });
+        clearPendingPayloadRefs("message-mismatch");
+        return [];
+      }
+    }
+
+    const refs = hasPendingRefs ? mentionState.pendingPayloadRefs : mentionState.selected;
     mentionState.pendingPayloadRefs = null;
+    mentionState.pendingMessageText = null;
     if (!refs || refs.length === 0) return [];
 
     let remaining = TOTAL_CONTEXT_CHAR_LIMIT;
@@ -771,9 +792,10 @@
     return body + "\n\nAttached files: " + summary;
   }
 
-  function queuePendingRefsForNextSend() {
+  function queuePendingRefsForNextSend(currentMessageText) {
     if (!mentionState.selected.length) return;
     mentionState.pendingPayloadRefs = mentionState.selected.map(function (entry) { return { ...entry }; });
+    mentionState.pendingMessageText = normalizeMessageText(currentMessageText);
     mentionState.selected = [];
     renderMentionChips();
     closeMentionPicker();
@@ -874,7 +896,7 @@
           blockEvent(event, "textarea-enter-blocked");
           return;
         }
-        queuePendingRefsForNextSend();
+        queuePendingRefsForNextSend(textarea.value);
       }
     }, true);
 
@@ -895,7 +917,7 @@
         if (mentionState.pickerOpen && !liveRange) {
           closeMentionPicker();
         }
-        queuePendingRefsForNextSend();
+        queuePendingRefsForNextSend(textarea.value);
       }, true);
     }
 
@@ -907,7 +929,7 @@
           blockEvent(event, "send-click-blocked");
           return;
         }
-        queuePendingRefsForNextSend();
+        queuePendingRefsForNextSend(textarea.value);
       }, true);
     }
 
@@ -1025,7 +1047,8 @@
                   mentionDebug("ws:send-blocked", { reason: "mention-selection", method: frame.method });
                   return;
                 }
-                const fileRefs = consumePendingFileRefs();
+                const outgoingMessageText = extractMessageTextFromParams(frame.params);
+                const fileRefs = consumePendingFileRefs(outgoingMessageText);
                 if (fileRefs.length > 0) {
                   if (typeof frame.params.message === "string") {
                     frame.params.message = buildMessageWithFileRefs(frame.params.message, fileRefs);

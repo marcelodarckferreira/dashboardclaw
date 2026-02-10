@@ -528,7 +528,7 @@ describe("inject.js - WebSocket auto-reconnect", () => {
       await Promise.resolve();
       await new Promise((r) => setTimeout(r, 0));
 
-      textarea.value = '@AG';
+      textarea.value = 'hi @AG';
       textarea.selectionStart = textarea.selectionEnd = textarea.value.length;
       textarea.dispatchEvent(new window.Event('input', { bubbles: true }));
       textarea.dispatchEvent(new window.KeyboardEvent('keydown', { key: 'Enter', bubbles: true }));
@@ -573,7 +573,7 @@ describe("inject.js - WebSocket auto-reconnect", () => {
 
       const rawSend = OriginalWebSocket.mock.instances[OriginalWebSocket.mock.instances.length - 1]._rawSend;
       const payload = JSON.parse(rawSend.mock.calls[0][0]);
-      expect(payload.params.message).not.toContain('Attached files: @AGENTS.md');
+      expect(payload.params.message).not.toContain('Attached files: AGENTS.md');
       expect(payload.params.message).toBe('hi');
     });
 
@@ -591,7 +591,7 @@ describe("inject.js - WebSocket auto-reconnect", () => {
       await Promise.resolve();
       await new Promise((r) => setTimeout(r, 0));
 
-      textarea.value = '@AG';
+      textarea.value = 'second @AG';
       textarea.selectionStart = textarea.selectionEnd = textarea.value.length;
       textarea.dispatchEvent(new window.Event('input', { bubbles: true }));
       textarea.dispatchEvent(new window.KeyboardEvent('keydown', { key: 'Enter', bubbles: true, cancelable: true }));
@@ -649,6 +649,39 @@ describe("inject.js - WebSocket auto-reconnect", () => {
       const rawSend = OriginalWebSocket.mock.instances[OriginalWebSocket.mock.instances.length - 1]._rawSend;
       const payload = JSON.parse(rawSend.mock.calls[0][0]);
       expect(payload.params.message).toBe('A new message');
+      expect(payload.params.message).not.toContain('Attached files: SOUL.md');
+    });
+
+    it("should drop queued attachment when outbound chat.send message does not match queued draft", async () => {
+      window.fetch = vi.fn(async (url: string) => {
+        if (String(url).includes('/api/files/read')) {
+          return { ok: true, json: async () => ({ content: 'context content' }) } as any;
+        }
+        return { ok: true, json: async () => ({ files: [{ path: 'SOUL.md', type: 'file' }] }) } as any;
+      });
+
+      const { textarea, form } = createChatComposer();
+      window.eval(injectScript);
+      await Promise.resolve();
+      await Promise.resolve();
+      await new Promise((r) => setTimeout(r, 0));
+
+      textarea.value = 'can you see this @SO';
+      textarea.selectionStart = textarea.selectionEnd = textarea.value.length;
+      textarea.dispatchEvent(new window.Event('input', { bubbles: true }));
+      textarea.dispatchEvent(new window.KeyboardEvent('keydown', { key: 'Enter', bubbles: true }));
+      await Promise.resolve();
+      await new Promise((r) => setTimeout(r, 0));
+
+      // Queue refs for the current draft, but do not simulate its outbound send.
+      form.dispatchEvent(new window.Event('submit', { bubbles: true }));
+
+      const ws = new window.WebSocket('ws://localhost:8080');
+      ws.send(JSON.stringify({ type: 'req', id: '4', method: 'chat.send', params: { message: 'hello' } }));
+
+      const rawSend = OriginalWebSocket.mock.instances[OriginalWebSocket.mock.instances.length - 1]._rawSend;
+      const payload = JSON.parse(rawSend.mock.calls[0][0]);
+      expect(payload.params.message).toBe('hello');
       expect(payload.params.message).not.toContain('Attached files: SOUL.md');
     });
   });
