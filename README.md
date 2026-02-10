@@ -1,13 +1,43 @@
 # OpenClaw Better Gateway
 
-An OpenClaw plugin that enhances the gateway web UI with automatic WebSocket reconnection and quality-of-life improvements.
+An OpenClaw plugin that turns the Gateway into a **reliable chat + code workspace**:
+- resilient auto-reconnect/refresh UX
+- embedded Monaco IDE
+- workspace file API for editing from the browser
+
+## Why this plugin
+
+OpenClaw Gateway is great, but when sockets drop or you need to quickly edit files, flow breaks.
+
+**Better Gateway** keeps sessions alive and adds an IDE directly in the Gateway experience.
 
 ## Features
 
-✅ **Auto-Reconnect** — WebSocket disconnects are automatically recovered (up to 10 attempts)  
-✅ **Connection Status Indicator** — Visual feedback showing connection state  
-✅ **Network Awareness** — Detects online/offline and reconnects when back  
-✅ **Drop-in Enhancement** — Same gateway UI, just better  
+### Reliability / Auto-Refresh Experience
+
+✅ **Auto-Reconnect** — WebSocket disconnects are automatically recovered  
+✅ **Connection Status Indicator** — Clear connected/reconnecting/disconnected state  
+✅ **Network Awareness** — Detects online/offline and retries automatically  
+✅ **Click-to-Refresh Recovery** — Fast manual recovery path when needed  
+✅ **Enhanced Gateway Route** — Drop-in improved UI at `/better-gateway/`
+
+### IDE (Big Selling Point 🚀)
+
+✅ **Embedded Monaco IDE** — Full editor experience inside Gateway  
+✅ **Sidebar File Explorer** — Browse workspace files/folders  
+✅ **Multi-tab Editing** — Open, switch, close, reorder tabs  
+✅ **Keyboard Shortcuts** — Save, toggle sidebar, quick-open, tab nav  
+✅ **Open Folder + Refresh Controls** — Quickly re-scope and refresh tree  
+✅ **State Persistence** — Open tabs/active tab/workspace root remembered  
+✅ **Gateway-Native Feel** — IDE integrated into sidebar navigation  
+✅ **Split-view-friendly foundation** — designed for chat + IDE workflows
+
+### File API
+
+✅ **Read/Write/List/Delete/Mkdir** routes for workspace operations  
+✅ **Tested implementation** with strong coverage in repo tests
+
+---
 
 ## Installation
 
@@ -18,6 +48,7 @@ openclaw plugins install @thisisjeron/openclaw-better-gateway
 Then restart your gateway.
 
 ### From source
+
 ```bash
 git clone https://github.com/ThisIsJeron/openclaw-better-gateway.git
 cd openclaw-better-gateway
@@ -27,18 +58,22 @@ openclaw plugins install -l .
 
 ## Usage
 
-After installation and gateway restart, access the enhanced UI at:
-```
+After installation and gateway restart:
+
+```text
 https://<YOUR_GATEWAY>/better-gateway/
 ```
 
-### Endpoints
+### Main endpoints
 
 | Path | Description |
 |------|-------------|
 | `/better-gateway/` | Enhanced gateway UI with auto-reconnect |
-| `/better-gateway/help` | Installation instructions & bookmarklet |
-| `/better-gateway/inject.js` | Standalone script for manual injection |
+| `/better-gateway/ide` | Embedded IDE page (Monaco + file explorer) |
+| `/better-gateway/api/files` | Workspace file operations API |
+| `/better-gateway/help` | Help/installation page |
+| `/better-gateway/inject.js` | Standalone injection script |
+| `/better-gateway/userscript.user.js` | Userscript download |
 
 ## Configuration
 
@@ -51,48 +86,23 @@ In your OpenClaw config (`openclaw.json`):
       "openclaw-better-gateway": {
         "enabled": true,
         "reconnectIntervalMs": 3000,
-        "maxReconnectAttempts": 10
+        "maxReconnectAttempts": 10,
+        "maxFileSize": 10485760
       }
     }
   }
 }
 ```
 
-## How It Works
+## How it works
 
 The plugin:
-1. Proxies the original gateway UI from `/` 
-2. Injects an auto-reconnect script that wraps WebSocket
-3. Serves the enhanced version at `/better-gateway/`
+1. Proxies the original gateway UI under `/better-gateway/`
+2. Injects reconnect/status behavior into the UI runtime
+3. Serves IDE + file API routes
+4. Keeps the Gateway workflow in one place (chat + code)
 
-When a WebSocket connection drops unexpectedly, the script automatically attempts to reconnect instead of showing "please refresh" errors.
-
-## Roadmap
-
-### Phase 1: Core Stability ✅
-- [x] Auto-reconnect on WebSocket disconnect
-- [x] Connection status indicator
-- [x] Network online/offline detection
-- [x] Configurable retry attempts and intervals
-
-### Phase 2: Enhanced UX
-- [ ] Session state recovery after gateway restart
-- [ ] Smarter reconnection (exponential backoff)
-- [ ] Toast notifications for connection events
-- [ ] Persist UI state across reconnects
-
-### Phase 3: Customization
-- [ ] Theme support (dark/light/custom)
-- [ ] Custom CSS injection
-- [ ] Widget system for dashboard additions
-- [ ] User preferences storage
-
-### Phase 4: Power Features
-- [ ] Multi-gateway dashboard
-- [ ] Session comparison view
-- [ ] Performance metrics overlay
-- [ ] Keyboard shortcuts
-- [ ] Command palette
+When a WebSocket connection drops, Better Gateway retries automatically. If recovery fails, the status indicator gives a quick click-to-refresh fallback.
 
 ## Development
 
