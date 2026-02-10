@@ -1,16 +1,21 @@
 /**
  * IDE Page Generator
  * Creates a full-featured code editor interface using Monaco Editor (CDN)
+ * With integrated chat sidebar for OpenClaw gateway communication
  */
 
 export interface IdePageConfig {
   monacoVersion: string;
   theme: "vs-dark" | "vs" | "hc-black";
+  chatEnabled: boolean;
+  chatDefaultOpen: boolean;
 }
 
 const DEFAULT_CONFIG: IdePageConfig = {
   monacoVersion: "0.52.0",
   theme: "vs-dark",
+  chatEnabled: true,
+  chatDefaultOpen: true,
 };
 
 /**
@@ -544,6 +549,262 @@ export function generateIdePage(config: Partial<IdePageConfig> = {}): string {
     ::-webkit-scrollbar-thumb:hover {
       background: #555;
     }
+    
+    /* ==================== Chat Sidebar ==================== */
+    
+    #chat-resize-handle {
+      width: 4px;
+      cursor: col-resize;
+      background: transparent;
+      flex-shrink: 0;
+    }
+    
+    #chat-resize-handle:hover {
+      background: var(--accent);
+    }
+    
+    #chat-sidebar {
+      width: 350px;
+      min-width: 280px;
+      max-width: 600px;
+      background: var(--bg-secondary);
+      border-left: 1px solid var(--border-color);
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+    }
+    
+    #chat-sidebar.collapsed {
+      width: 0;
+      min-width: 0;
+      border-left: none;
+    }
+    
+    #chat-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 10px 12px;
+      font-size: 11px;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      color: var(--text-secondary);
+      border-bottom: 1px solid var(--border-color);
+    }
+    
+    #chat-header .chat-title {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    
+    #chat-status {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: var(--text-muted);
+    }
+    
+    #chat-status.connected {
+      background: var(--success);
+    }
+    
+    #chat-status.connecting {
+      background: var(--warning);
+      animation: pulse 1s infinite;
+    }
+    
+    #chat-status.error {
+      background: var(--error);
+    }
+    
+    @keyframes pulse {
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0.5; }
+    }
+    
+    #chat-header button {
+      background: transparent;
+      border: none;
+      color: var(--text-secondary);
+      cursor: pointer;
+      padding: 4px;
+      border-radius: 4px;
+      font-size: 14px;
+    }
+    
+    #chat-header button:hover {
+      background: var(--bg-hover);
+      color: var(--text-primary);
+    }
+    
+    #chat-messages {
+      flex: 1;
+      overflow-y: auto;
+      padding: 12px;
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+    }
+    
+    .chat-message {
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+      animation: fadeIn 0.2s ease-out;
+    }
+    
+    @keyframes fadeIn {
+      from { opacity: 0; transform: translateY(4px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+    
+    .chat-message.user {
+      align-items: flex-end;
+    }
+    
+    .chat-message.assistant {
+      align-items: flex-start;
+    }
+    
+    .chat-message .sender {
+      font-size: 11px;
+      color: var(--text-muted);
+      padding: 0 8px;
+    }
+    
+    .chat-message .content {
+      max-width: 90%;
+      padding: 10px 14px;
+      border-radius: 12px;
+      font-size: 13px;
+      line-height: 1.5;
+      white-space: pre-wrap;
+      word-break: break-word;
+    }
+    
+    .chat-message.user .content {
+      background: var(--accent);
+      color: white;
+      border-bottom-right-radius: 4px;
+    }
+    
+    .chat-message.assistant .content {
+      background: var(--bg-tertiary);
+      color: var(--text-primary);
+      border-bottom-left-radius: 4px;
+    }
+    
+    .chat-message.system .content {
+      background: transparent;
+      color: var(--text-muted);
+      font-size: 12px;
+      text-align: center;
+      padding: 8px;
+    }
+    
+    .chat-message.streaming .content::after {
+      content: "▋";
+      animation: blink 0.8s infinite;
+    }
+    
+    @keyframes blink {
+      0%, 50% { opacity: 1; }
+      51%, 100% { opacity: 0; }
+    }
+    
+    #chat-input-area {
+      padding: 12px;
+      border-top: 1px solid var(--border-color);
+      background: var(--bg-secondary);
+    }
+    
+    #chat-input-wrapper {
+      display: flex;
+      gap: 8px;
+      align-items: flex-end;
+    }
+    
+    #chat-input {
+      flex: 1;
+      min-height: 40px;
+      max-height: 120px;
+      padding: 10px 12px;
+      background: var(--bg-primary);
+      border: 1px solid var(--border-color);
+      border-radius: 8px;
+      color: var(--text-primary);
+      font-size: 13px;
+      font-family: inherit;
+      resize: none;
+      outline: none;
+      line-height: 1.4;
+    }
+    
+    #chat-input:focus {
+      border-color: var(--accent);
+    }
+    
+    #chat-input::placeholder {
+      color: var(--text-muted);
+    }
+    
+    #chat-send-btn {
+      width: 40px;
+      height: 40px;
+      background: var(--accent);
+      border: none;
+      border-radius: 8px;
+      color: white;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 16px;
+      transition: background 0.15s;
+    }
+    
+    #chat-send-btn:hover {
+      background: var(--accent-hover);
+    }
+    
+    #chat-send-btn:disabled {
+      background: var(--bg-tertiary);
+      color: var(--text-muted);
+      cursor: not-allowed;
+    }
+    
+    .chat-empty {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      height: 100%;
+      color: var(--text-muted);
+      text-align: center;
+      padding: 24px;
+    }
+    
+    .chat-empty h3 {
+      font-size: 16px;
+      font-weight: 500;
+      color: var(--text-secondary);
+      margin-bottom: 8px;
+    }
+    
+    .chat-empty p {
+      font-size: 13px;
+      line-height: 1.5;
+    }
+    
+    .chat-empty kbd {
+      background: var(--bg-tertiary);
+      padding: 2px 6px;
+      border-radius: 4px;
+      font-family: inherit;
+      font-size: 11px;
+    }
   </style>
 </head>
 <body>
@@ -565,6 +826,9 @@ export function generateIdePage(config: Partial<IdePageConfig> = {}): string {
         ↻ Refresh
       </button>
       <span id="save-status"></span>
+      <button class="toolbar-btn" id="toggle-chat" title="Toggle Chat (Ctrl+Shift+C)">
+        💬 Chat
+      </button>
     </div>
     
     <div id="main">
@@ -592,7 +856,32 @@ export function generateIdePage(config: Partial<IdePageConfig> = {}): string {
               <div class="shortcut"><kbd>⌘/Ctrl+B</kbd> <span>Toggle sidebar</span></div>
               <div class="shortcut"><kbd>⌘/Ctrl+P</kbd> <span>Quick open</span></div>
               <div class="shortcut"><kbd>⌘/Ctrl+W</kbd> <span>Close tab</span></div>
+              <div class="shortcut"><kbd>⌘/Ctrl+Shift+C</kbd> <span>Toggle chat</span></div>
             </div>
+          </div>
+        </div>
+      </div>
+      
+      <div id="chat-resize-handle"></div>
+      
+      <div id="chat-sidebar">
+        <div id="chat-header">
+          <div class="chat-title">
+            <span id="chat-status" title="Disconnected"></span>
+            <span>Chat</span>
+          </div>
+          <button id="chat-close-btn" title="Close Chat (Ctrl+Shift+C)">×</button>
+        </div>
+        <div id="chat-messages">
+          <div class="chat-empty">
+            <h3>OpenClaw Chat</h3>
+            <p>Chat with your AI assistant while coding.<br/>Press <kbd>⌘/Ctrl+Shift+C</kbd> to toggle.</p>
+          </div>
+        </div>
+        <div id="chat-input-area">
+          <div id="chat-input-wrapper">
+            <textarea id="chat-input" placeholder="Type a message..." rows="1"></textarea>
+            <button id="chat-send-btn" title="Send message">↑</button>
           </div>
         </div>
       </div>
@@ -622,6 +911,16 @@ export function generateIdePage(config: Partial<IdePageConfig> = {}): string {
       models: new Map(), // path -> monaco model
       expandedDirs: new Set(['']),
       unsavedChanges: new Map(), // path -> true
+      // Chat state
+      chatWs: null,
+      chatMessages: [],
+      chatSessionKey: 'webchat:ide:main',
+      chatConnected: false,
+      chatReconnectAttempts: 0,
+      chatMaxReconnectAttempts: 5,
+      chatPendingRequests: new Map(), // id -> { resolve, reject }
+      chatCurrentStreamId: null,
+      chatStreamingContent: '',
     };
     
     // DOM Elements
@@ -635,6 +934,13 @@ export function generateIdePage(config: Partial<IdePageConfig> = {}): string {
       saveStatus: document.getElementById('save-status'),
       contextMenu: document.getElementById('context-menu'),
       fileSearch: document.getElementById('file-search'),
+      // Chat elements
+      chatSidebar: document.getElementById('chat-sidebar'),
+      chatResizeHandle: document.getElementById('chat-resize-handle'),
+      chatMessages: document.getElementById('chat-messages'),
+      chatInput: document.getElementById('chat-input'),
+      chatSendBtn: document.getElementById('chat-send-btn'),
+      chatStatus: document.getElementById('chat-status'),
     };
     
     // Search state
@@ -1160,6 +1466,12 @@ export function generateIdePage(config: Partial<IdePageConfig> = {}): string {
           }
         }
         
+        // Cmd/Ctrl+Shift+C - Toggle chat sidebar
+        if (modKey && e.shiftKey && (e.key === 'c' || e.key === 'C')) {
+          e.preventDefault();
+          toggleChatSidebar();
+        }
+        
         // Escape - Hide context menu and clear search
         if (e.key === 'Escape') {
           hideContextMenu();
@@ -1218,6 +1530,326 @@ export function generateIdePage(config: Partial<IdePageConfig> = {}): string {
       });
     }
     
+    // ==================== Chat Sidebar ====================
+    
+    function generateRequestId() {
+      return 'req_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9);
+    }
+    
+    function connectChat() {
+      if (state.chatWs && state.chatWs.readyState === WebSocket.OPEN) return;
+      
+      const protocol = location.protocol === 'https:' ? 'wss' : 'ws';
+      const wsUrl = protocol + '://' + location.host;
+      
+      updateChatStatus('connecting');
+      
+      try {
+        state.chatWs = new WebSocket(wsUrl);
+        
+        state.chatWs.addEventListener('open', () => {
+          console.log('[IDE Chat] Connected');
+          state.chatConnected = true;
+          state.chatReconnectAttempts = 0;
+          updateChatStatus('connected');
+          
+          // Send connect frame
+          sendChatFrame('connect', {
+            clientType: 'ide',
+            version: '1.0.0',
+          });
+        });
+        
+        state.chatWs.addEventListener('message', (event) => {
+          try {
+            const frame = JSON.parse(event.data);
+            handleChatFrame(frame);
+          } catch (err) {
+            console.error('[IDE Chat] Failed to parse message:', err);
+          }
+        });
+        
+        state.chatWs.addEventListener('close', (event) => {
+          console.log('[IDE Chat] Disconnected:', event.code, event.reason);
+          state.chatConnected = false;
+          updateChatStatus('disconnected');
+          
+          // Auto-reconnect
+          if (state.chatReconnectAttempts < state.chatMaxReconnectAttempts) {
+            state.chatReconnectAttempts++;
+            const delay = Math.min(1000 * Math.pow(2, state.chatReconnectAttempts - 1), 30000);
+            console.log('[IDE Chat] Reconnecting in ' + delay + 'ms (attempt ' + state.chatReconnectAttempts + ')');
+            setTimeout(connectChat, delay);
+          } else {
+            updateChatStatus('error');
+          }
+        });
+        
+        state.chatWs.addEventListener('error', (err) => {
+          console.error('[IDE Chat] WebSocket error:', err);
+          updateChatStatus('error');
+        });
+      } catch (err) {
+        console.error('[IDE Chat] Failed to connect:', err);
+        updateChatStatus('error');
+      }
+    }
+    
+    function sendChatFrame(method, params) {
+      if (!state.chatWs || state.chatWs.readyState !== WebSocket.OPEN) {
+        console.warn('[IDE Chat] Cannot send - not connected');
+        return null;
+      }
+      
+      const id = generateRequestId();
+      const frame = { method, params, id };
+      state.chatWs.send(JSON.stringify(frame));
+      return id;
+    }
+    
+    function handleChatFrame(frame) {
+      // Handle response to a pending request
+      if (frame.id && state.chatPendingRequests.has(frame.id)) {
+        const pending = state.chatPendingRequests.get(frame.id);
+        state.chatPendingRequests.delete(frame.id);
+        
+        if (frame.error) {
+          pending.reject(new Error(frame.error.message || 'Unknown error'));
+        } else {
+          pending.resolve(frame.result);
+        }
+        return;
+      }
+      
+      // Handle chat events (streaming responses)
+      if (frame.method === 'chat.event') {
+        const event = frame.params;
+        
+        if (event.state === 'delta') {
+          // Streaming content
+          if (event.message?.content) {
+            const content = typeof event.message.content === 'string' 
+              ? event.message.content 
+              : event.message.content.map(c => c.text || '').join('');
+            
+            if (state.chatCurrentStreamId !== event.runId) {
+              // New stream - add a new message
+              state.chatCurrentStreamId = event.runId;
+              state.chatStreamingContent = content;
+              addChatMessage('assistant', content, true);
+            } else {
+              // Continue stream - update existing message
+              state.chatStreamingContent = content;
+              updateStreamingMessage(content);
+            }
+          }
+        } else if (event.state === 'final') {
+          // Stream complete
+          if (state.chatCurrentStreamId === event.runId) {
+            finalizeStreamingMessage();
+            state.chatCurrentStreamId = null;
+            state.chatStreamingContent = '';
+          }
+        } else if (event.state === 'error') {
+          // Error
+          if (state.chatCurrentStreamId === event.runId) {
+            finalizeStreamingMessage();
+            state.chatCurrentStreamId = null;
+          }
+          addChatMessage('system', 'Error: ' + (event.errorMessage || 'Unknown error'));
+        } else if (event.state === 'aborted') {
+          // Aborted
+          if (state.chatCurrentStreamId === event.runId) {
+            finalizeStreamingMessage();
+            state.chatCurrentStreamId = null;
+          }
+          addChatMessage('system', 'Response aborted');
+        }
+      }
+    }
+    
+    function updateChatStatus(status) {
+      const statusEl = elements.chatStatus;
+      if (!statusEl) return;
+      
+      statusEl.className = '';
+      statusEl.classList.add(status);
+      
+      const titles = {
+        connected: 'Connected',
+        connecting: 'Connecting...',
+        disconnected: 'Disconnected',
+        error: 'Connection failed',
+      };
+      statusEl.title = titles[status] || status;
+    }
+    
+    function addChatMessage(role, content, streaming = false) {
+      // Remove empty state if present
+      const emptyState = elements.chatMessages.querySelector('.chat-empty');
+      if (emptyState) emptyState.remove();
+      
+      const msg = document.createElement('div');
+      msg.className = 'chat-message ' + role;
+      if (streaming) msg.classList.add('streaming');
+      msg.dataset.role = role;
+      
+      const senderNames = {
+        user: 'You',
+        assistant: 'Assistant',
+        system: '',
+      };
+      
+      msg.innerHTML = \`
+        \${senderNames[role] ? '<div class="sender">' + senderNames[role] + '</div>' : ''}
+        <div class="content">\${escapeHtml(content)}</div>
+      \`;
+      
+      elements.chatMessages.appendChild(msg);
+      elements.chatMessages.scrollTop = elements.chatMessages.scrollHeight;
+      
+      // Store in state
+      state.chatMessages.push({ role, content, streaming });
+    }
+    
+    function updateStreamingMessage(content) {
+      const messages = elements.chatMessages.querySelectorAll('.chat-message.streaming');
+      const lastStreaming = messages[messages.length - 1];
+      if (lastStreaming) {
+        const contentEl = lastStreaming.querySelector('.content');
+        if (contentEl) {
+          contentEl.textContent = content;
+          elements.chatMessages.scrollTop = elements.chatMessages.scrollHeight;
+        }
+      }
+    }
+    
+    function finalizeStreamingMessage() {
+      const messages = elements.chatMessages.querySelectorAll('.chat-message.streaming');
+      messages.forEach(msg => msg.classList.remove('streaming'));
+    }
+    
+    function escapeHtml(text) {
+      const div = document.createElement('div');
+      div.textContent = text;
+      return div.innerHTML;
+    }
+    
+    async function sendChatMessage() {
+      const input = elements.chatInput;
+      const message = input.value.trim();
+      if (!message) return;
+      
+      // Disable input while sending
+      input.disabled = true;
+      elements.chatSendBtn.disabled = true;
+      
+      // Add user message to UI
+      addChatMessage('user', message);
+      input.value = '';
+      autoResizeInput();
+      
+      try {
+        // Send to gateway
+        const id = sendChatFrame('chat.send', {
+          sessionKey: state.chatSessionKey,
+          message: message,
+        });
+        
+        if (!id) {
+          addChatMessage('system', 'Failed to send - not connected');
+        }
+      } catch (err) {
+        console.error('[IDE Chat] Send failed:', err);
+        addChatMessage('system', 'Failed to send message');
+      } finally {
+        input.disabled = false;
+        elements.chatSendBtn.disabled = false;
+        input.focus();
+      }
+    }
+    
+    function toggleChatSidebar() {
+      const sidebar = elements.chatSidebar;
+      const handle = elements.chatResizeHandle;
+      
+      if (sidebar.classList.contains('collapsed')) {
+        sidebar.classList.remove('collapsed');
+        handle.style.display = '';
+        // Connect if not connected
+        if (!state.chatConnected) {
+          connectChat();
+        }
+      } else {
+        sidebar.classList.add('collapsed');
+        handle.style.display = 'none';
+      }
+      
+      // Save preference
+      localStorage.setItem('chatSidebarOpen', !sidebar.classList.contains('collapsed'));
+    }
+    
+    function autoResizeInput() {
+      const input = elements.chatInput;
+      input.style.height = 'auto';
+      input.style.height = Math.min(input.scrollHeight, 120) + 'px';
+    }
+    
+    function setupChatSidebar() {
+      // Connect on load if sidebar is open
+      const savedOpen = localStorage.getItem('chatSidebarOpen');
+      const shouldOpen = savedOpen === null ? ${config.chatDefaultOpen} : savedOpen === 'true';
+      
+      if (!shouldOpen) {
+        elements.chatSidebar.classList.add('collapsed');
+        elements.chatResizeHandle.style.display = 'none';
+      } else {
+        connectChat();
+      }
+      
+      // Toggle button
+      document.getElementById('toggle-chat')?.addEventListener('click', toggleChatSidebar);
+      document.getElementById('chat-close-btn')?.addEventListener('click', toggleChatSidebar);
+      
+      // Send button
+      elements.chatSendBtn?.addEventListener('click', sendChatMessage);
+      
+      // Input handling
+      elements.chatInput?.addEventListener('keydown', (e) => {
+        // Enter to send (without shift)
+        if (e.key === 'Enter' && !e.shiftKey) {
+          e.preventDefault();
+          sendChatMessage();
+        }
+      });
+      
+      elements.chatInput?.addEventListener('input', autoResizeInput);
+      
+      // Resize handle for chat sidebar
+      let isResizingChat = false;
+      
+      elements.chatResizeHandle?.addEventListener('mousedown', () => {
+        isResizingChat = true;
+        document.body.style.cursor = 'col-resize';
+      });
+      
+      document.addEventListener('mousemove', (e) => {
+        if (!isResizingChat) return;
+        const containerWidth = document.getElementById('main').offsetWidth;
+        const newWidth = containerWidth - e.clientX;
+        if (newWidth >= 280 && newWidth <= 600) {
+          elements.chatSidebar.style.width = newWidth + 'px';
+        }
+      });
+      
+      document.addEventListener('mouseup', () => {
+        if (isResizingChat) {
+          isResizingChat = false;
+          document.body.style.cursor = '';
+        }
+      });
+    }
+    
     // ==================== Initialize ====================
     
     async function init() {
@@ -1259,6 +1891,7 @@ export function generateIdePage(config: Partial<IdePageConfig> = {}): string {
         setupKeyboardShortcuts();
         setupResizeHandle();
         setupFileSearch();
+        setupChatSidebar();
         
         // Context menu handlers
         elements.contextMenu.querySelectorAll('.context-item').forEach(item => {
