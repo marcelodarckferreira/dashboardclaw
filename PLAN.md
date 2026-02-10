@@ -395,33 +395,50 @@ better-gateway-dev/
 
 **Goal:** Make the IDE Cursor-like with integrated chat sidebar, powered by OpenClaw.
 
-11. [~] **Integrated chat sidebar on the right** *(partially complete)*
-    - [x] Split view scaffold exists: file tree (left) | editor (center) | chat (right)
+11. [~] **Ticket: Stabilize integrated chat panel shell** *(partially complete)*
+    - [x] Split-view scaffold exists: file tree (left) | editor (center) | chat (right)
     - [x] IDE is accessible from gateway sidebar (native-feeling IDE tab/view)
-    - [ ] Chat panel connects to OpenClaw gateway WebSocket
-    - [ ] Send messages, receive responses in real-time
-    - [ ] Resizable panel widths
-    - [ ] Toggle chat panel visibility (⌘/Ctrl+Shift+C)
-12. [ ] `@file` mention autocomplete
-    - Type `@` to see file picker
-    - Autocomplete from workspace files
-    - Selected files shown as chips in input
-13. [ ] File content injection in messages
-    - Referenced files included in message context
-    - Show file snippets in chat UI
-14. [ ] Real-time file change updates
-    - When chat/agent edits files, IDE updates
-    - WebSocket events for file changes
-15. [ ] Selection-to-chat flow
-    - Select code in editor → "Ask about selection" button
-    - Selection context auto-included in message
-    - Line numbers preserved
+    - [ ] Add chat panel mount lifecycle (open/close without breaking editor state)
+    - [ ] Add panel width drag-resize + persisted width
+    - [ ] Add chat visibility toggle (⌘/Ctrl+Shift+C) + toolbar button
+    - **Acceptance:** panel can be toggled/resized repeatedly with no layout break or lost editor state
+
+12. [ ] **Ticket: Wire chat transport to OpenClaw session stream**
+    - [ ] Connect panel to gateway WebSocket/session channel
+    - [ ] Send user message from panel input
+    - [ ] Stream assistant responses in real time
+    - [ ] Handle reconnect and transient disconnect UI states
+    - **Acceptance:** user can send message and receive streamed response in-panel without page reload
+
+13. [ ] **Ticket: `@file` mention autocomplete + chips**
+    - [ ] Type `@` to open file picker from current workspace
+    - [ ] Keyboard navigation + enter to select
+    - [ ] Selected files shown as removable chips above input
+    - **Acceptance:** at least 3 files can be attached and removed before send
+
+14. [ ] **Ticket: File context injection for chat prompts**
+    - [ ] Attach referenced file snippets to outbound message payload
+    - [ ] Include path + line ranges in injected context
+    - [ ] Add truncation guards for large files
+    - **Acceptance:** prompts include deterministic file context and remain under model limits
+
+15. [ ] **Ticket: Real-time file sync from chat/tool edits**
+    - [ ] Subscribe editor to file-changed events
+    - [ ] Update open Monaco model in place when matching path changes
+    - [ ] Show "externally modified" indicator when applicable
+    - **Acceptance:** editing a file via chat/tool reflects in open editor without manual refresh
+
+16. [ ] **Ticket: Selection-to-chat flow**
+    - [ ] Add "Ask about selection" action in editor UI/context menu
+    - [ ] Inject selected text with file path + exact line span
+    - [ ] Clear one-shot selection context after send
+    - **Acceptance:** selected code is reproducibly included in next chat message
 
 ### Week 4: Polish
-15. [ ] Split view layout
-16. [ ] Search across files
-17. [ ] Error handling & edge cases
-18. [ ] Documentation & README update
+17. [ ] Split view UX polish (snap widths, min/max constraints, responsive behavior)
+18. [ ] Search across files (Ctrl+Shift+F, regex support, result navigation)
+19. [ ] Error handling & edge cases (network failures, large files, binary files, auth errors)
+20. [ ] Documentation & README update (usage, shortcuts, architecture, known limits)
 
 ---
 
