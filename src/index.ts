@@ -3,6 +3,7 @@ import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { dirname, join } from "node:path";
 import { createFileApiHandler, DEFAULT_MAX_FILE_SIZE } from "./file-api.js";
+import { generateIdePage } from "./ide-page.js";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
@@ -122,6 +123,7 @@ function generateLandingPage(config: PluginConfig, gatewayHost: string): string 
   <div class="feature">Configurable retry attempts (${config.maxReconnectAttempts} max)</div>
   <div class="feature">Reconnect interval: ${config.reconnectIntervalMs}ms</div>
   <div class="feature">File API for workspace access <span class="new">NEW</span></div>
+  <div class="feature">Monaco-powered IDE <span class="new">NEW</span></div>
 
   <h2>Option 1: Bookmarklet</h2>
   <p>Drag this to your bookmarks bar, then click it when on the Gateway UI:</p>
@@ -140,6 +142,16 @@ function generateLandingPage(config: PluginConfig, gatewayHost: string): string 
 // ==/UserScript==
 
 fetch('/better-gateway/inject.js').then(r=>r.text()).then(eval);</pre>
+
+  <h2>IDE <span class="new">NEW</span></h2>
+  <p>Full-featured code editor with Monaco:</p>
+  <p><a class="bookmarklet" href="/better-gateway/ide">🚀 Open IDE</a></p>
+  <ul style="margin: 16px 0; padding-left: 24px; color: #aaa;">
+    <li>File explorer with tree navigation</li>
+    <li>Syntax highlighting for 30+ languages</li>
+    <li>Multi-tab editing with Ctrl+S save</li>
+    <li>Keyboard shortcuts (Ctrl+B sidebar, Ctrl+W close)</li>
+  </ul>
 
   <h2>File API <span class="new">NEW</span></h2>
   <p>Access workspace files programmatically:</p>
@@ -257,6 +269,18 @@ export default {
         if (pathname.startsWith("/better-gateway/api/files")) {
           const handled = await fileApiHandler(req, res, pathname);
           if (handled) return true;
+        }
+
+        // Serve the IDE page
+        if (pathname === "/better-gateway/ide") {
+          const html = generateIdePage({ theme: "vs-dark" });
+          res.writeHead(200, {
+            "Content-Type": "text/html",
+            "Content-Length": Buffer.byteLength(html),
+          });
+          res.end(html);
+          api.logger.debug("Served IDE page");
+          return true;
         }
 
         // Serve the inject script
