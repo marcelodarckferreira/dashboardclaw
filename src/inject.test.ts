@@ -281,120 +281,163 @@ describe("inject.js - WebSocket auto-reconnect", () => {
     });
   });
 
-  describe("IDE sidebar injection", () => {
-    it("should not inject IDE tab when no sidebar exists", () => {
-      window.eval(injectScript);
-      const ideTab = window.document.getElementById("better-gateway-ide-tab");
-      expect(ideTab).toBeNull();
-    });
-
-    it("should inject IDE tab when sidebar exists", () => {
-      // Create a mock sidebar
+  describe("IDE embedded view", () => {
+    function createGatewaySidebar() {
+      // Create gateway-like sidebar structure
       const sidebar = window.document.createElement("aside");
-      sidebar.className = "sidebar";
-      sidebar.style.cssText = "position: fixed; left: 0; width: 200px; height: 500px;";
+      sidebar.className = "nav";
+      
+      const navGroup = window.document.createElement("div");
+      navGroup.className = "nav-group";
+      
+      const navItems = window.document.createElement("div");
+      navItems.className = "nav-group__items";
+      
+      const chatLink = window.document.createElement("a");
+      chatLink.href = "/chat";
+      chatLink.className = "nav-item active";
+      chatLink.innerHTML = `
+        <span class="nav-item__icon">💬</span>
+        <span class="nav-item__text">Chat</span>
+      `;
+      
+      navItems.appendChild(chatLink);
+      navGroup.appendChild(navItems);
+      sidebar.appendChild(navGroup);
       window.document.body.appendChild(sidebar);
       
-      // Add some existing nav items
-      const navItem = window.document.createElement("a");
-      navItem.className = "nav-item";
-      navItem.textContent = "Home";
-      sidebar.appendChild(navItem);
-
-      window.eval(injectScript);
+      // Create main content area
+      const main = window.document.createElement("main");
+      main.className = "content content--chat";
+      main.innerHTML = "<div>Chat content</div>";
+      window.document.body.appendChild(main);
       
-      const ideTab = window.document.getElementById("better-gateway-ide-tab");
-      expect(ideTab).not.toBeNull();
-      expect(ideTab?.getAttribute("href")).toBe("/better-gateway/ide");
+      return { sidebar, navItems, chatLink, main };
+    }
+
+    it("should not inject IDE nav when Chat link is missing", () => {
+      window.eval(injectScript);
+      const ideNav = window.document.getElementById("better-gateway-ide-nav");
+      expect(ideNav).toBeNull();
     });
 
-    it("should create IDE tab with correct structure", () => {
-      const sidebar = window.document.createElement("nav");
-      sidebar.className = "sidebar-nav";
-      sidebar.style.cssText = "position: fixed; left: 0; width: 250px; height: 400px;";
-      window.document.body.appendChild(sidebar);
-
+    it("should inject IDE nav item below Chat", () => {
+      createGatewaySidebar();
       window.eval(injectScript);
       
-      const ideTab = window.document.getElementById("better-gateway-ide-tab");
-      expect(ideTab).not.toBeNull();
-      expect(ideTab?.innerHTML).toContain("IDE");
-      expect(ideTab?.innerHTML).toContain("sidebar-icon");
-      expect(ideTab?.innerHTML).toContain("sidebar-label");
+      const ideNav = window.document.getElementById("better-gateway-ide-nav");
+      expect(ideNav).not.toBeNull();
+      expect(ideNav?.className).toBe("nav-item");
+      expect(ideNav?.getAttribute("href")).toBe("#ide");
     });
 
-    it("should add separator before IDE tab when other items exist", () => {
-      const sidebar = window.document.createElement("div");
-      sidebar.className = "sidebar";
-      sidebar.style.cssText = "position: fixed; left: 0; width: 200px; height: 500px;";
-      
-      const existingItem = window.document.createElement("button");
-      existingItem.className = "nav-item";
-      sidebar.appendChild(existingItem);
-      
-      window.document.body.appendChild(sidebar);
-
+    it("should create IDE nav with correct structure", () => {
+      createGatewaySidebar();
       window.eval(injectScript);
       
-      const separator = window.document.querySelector(".better-gateway-separator");
-      expect(separator).not.toBeNull();
+      const ideNav = window.document.getElementById("better-gateway-ide-nav");
+      expect(ideNav).not.toBeNull();
+      expect(ideNav?.innerHTML).toContain("nav-item__icon");
+      expect(ideNav?.innerHTML).toContain("nav-item__text");
+      expect(ideNav?.innerHTML).toContain("IDE");
+      expect(ideNav?.innerHTML).toContain("svg"); // Has icon
     });
 
-    it.skip("should not inject IDE tab on the IDE page itself", () => {
+    it("should place IDE nav after Chat in nav-group__items", () => {
+      const { navItems } = createGatewaySidebar();
+      window.eval(injectScript);
+      
+      const items = navItems.querySelectorAll(".nav-item");
+      expect(items.length).toBe(2);
+      expect(items[0].getAttribute("href")).toBe("/chat");
+      expect(items[1].getAttribute("href")).toBe("#ide");
+    });
+
+    it.skip("should not inject on standalone IDE page", () => {
       // SKIP: JSDOM doesn't allow redefining location.pathname
       // This functionality is tested manually in the browser
     });
 
-    it("should not inject duplicate IDE tabs", () => {
-      const sidebar = window.document.createElement("aside");
-      sidebar.className = "sidebar";
-      sidebar.style.cssText = "position: fixed; left: 0; width: 200px; height: 500px;";
-      window.document.body.appendChild(sidebar);
-
-      // Inject twice
+    it("should not inject duplicate IDE nav items", () => {
+      createGatewaySidebar();
+      
       window.eval(injectScript);
       window.eval(injectScript);
       
-      const ideTabs = window.document.querySelectorAll("#better-gateway-ide-tab");
-      expect(ideTabs.length).toBe(1);
+      const ideNavs = window.document.querySelectorAll("#better-gateway-ide-nav");
+      expect(ideNavs.length).toBe(1);
     });
 
     it("should log injection message to console", () => {
       const consoleSpy = vi.spyOn(window.console, "log");
+      createGatewaySidebar();
       
-      const sidebar = window.document.createElement("aside");
-      sidebar.className = "sidebar";
-      sidebar.style.cssText = "position: fixed; left: 0; width: 200px; height: 500px;";
-      window.document.body.appendChild(sidebar);
-
       window.eval(injectScript);
       
-      expect(consoleSpy).toHaveBeenCalledWith("[BetterGateway] IDE tab injected into sidebar");
+      expect(consoleSpy).toHaveBeenCalledWith("[BetterGateway] IDE nav item injected below Chat");
     });
 
-    it("should find sidebar with various class names", () => {
-      // Test with .side-nav class
-      const sidebar = window.document.createElement("nav");
-      sidebar.className = "side-nav";
-      sidebar.style.cssText = "position: fixed; left: 0; width: 280px; height: 600px;";
-      window.document.body.appendChild(sidebar);
-
+    it("should create IDE iframe when view is toggled", () => {
+      const { main } = createGatewaySidebar();
       window.eval(injectScript);
       
-      const ideTab = window.document.getElementById("better-gateway-ide-tab");
-      expect(ideTab).not.toBeNull();
+      const ideNav = window.document.getElementById("better-gateway-ide-nav");
+      ideNav?.click();
+      
+      const ideFrame = window.document.getElementById("better-gateway-ide-frame");
+      expect(ideFrame).not.toBeNull();
+      expect(ideFrame?.tagName).toBe("IFRAME");
+      expect(ideFrame?.getAttribute("src")).toBe("/better-gateway/ide");
     });
 
-    it("should style IDE tab with correct colors", () => {
-      const sidebar = window.document.createElement("aside");
-      sidebar.className = "sidebar";
-      sidebar.style.cssText = "position: fixed; left: 0; width: 200px; height: 500px;";
-      window.document.body.appendChild(sidebar);
-
+    it("should hide main content when IDE view is shown", () => {
+      const { main } = createGatewaySidebar();
       window.eval(injectScript);
       
-      const ideTab = window.document.getElementById("better-gateway-ide-tab");
-      expect(ideTab?.style.color).toBe("rgb(0, 212, 255)");
+      const ideNav = window.document.getElementById("better-gateway-ide-nav");
+      ideNav?.click();
+      
+      expect(main.style.display).toBe("none");
+      const ideFrame = window.document.getElementById("better-gateway-ide-frame");
+      expect(ideFrame?.style.display).toBe("block");
+    });
+
+    it("should toggle back to Chat view", () => {
+      const { main } = createGatewaySidebar();
+      window.eval(injectScript);
+      
+      const ideNav = window.document.getElementById("better-gateway-ide-nav");
+      
+      // Switch to IDE
+      ideNav?.click();
+      expect(main.style.display).toBe("none");
+      
+      // Switch back to Chat
+      ideNav?.click();
+      expect(main.style.display).toBe("");
+      const ideFrame = window.document.getElementById("better-gateway-ide-frame");
+      expect(ideFrame?.style.display).toBe("none");
+    });
+
+    it("should update active class when switching views", () => {
+      const { chatLink } = createGatewaySidebar();
+      window.eval(injectScript);
+      
+      const ideNav = window.document.getElementById("better-gateway-ide-nav");
+      
+      // Initially Chat is active
+      expect(chatLink.classList.contains("active")).toBe(true);
+      expect(ideNav?.classList.contains("active")).toBe(false);
+      
+      // Switch to IDE
+      ideNav?.click();
+      expect(chatLink.classList.contains("active")).toBe(false);
+      expect(ideNav?.classList.contains("active")).toBe(true);
+      
+      // Switch back to Chat
+      ideNav?.click();
+      expect(chatLink.classList.contains("active")).toBe(true);
+      expect(ideNav?.classList.contains("active")).toBe(false);
     });
   });
 });

@@ -99,189 +99,154 @@
     }
   }
 
-  // ==================== IDE Sidebar Injection ====================
+  // ==================== IDE Embedded View ====================
 
-  function createIdeTab() {
-    const tab = document.createElement("a");
-    tab.id = "better-gateway-ide-tab";
-    tab.href = "/better-gateway/ide";
-    tab.className = "sidebar-item ide-tab";
-    tab.title = "Open IDE - Code Editor";
-    tab.innerHTML = `
-      <span class="sidebar-icon">⚡</span>
-      <span class="sidebar-label">IDE</span>
-    `;
-    
-    tab.style.cssText = `
-      display: flex;
-      align-items: center;
-      gap: 10px;
-      padding: 10px 16px;
-      color: #00d4ff;
-      text-decoration: none;
-      cursor: pointer;
-      border-radius: 6px;
-      margin: 4px 8px;
-      font-size: 14px;
-      font-weight: 500;
-      transition: all 0.2s ease;
-      background: linear-gradient(135deg, rgba(0, 212, 255, 0.1) 0%, rgba(0, 212, 255, 0.05) 100%);
-      border: 1px solid rgba(0, 212, 255, 0.2);
+  let ideViewActive = false;
+
+  // SVG icon for code/IDE (matches gateway's feather icon style)
+  const IDE_ICON_SVG = `
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+      <polyline points="16 18 22 12 16 6"></polyline>
+      <polyline points="8 6 2 12 8 18"></polyline>
+    </svg>
+  `;
+
+  function createIdeNavItem() {
+    const item = document.createElement("a");
+    item.id = "better-gateway-ide-nav";
+    item.href = "#ide";
+    item.className = "nav-item";
+    item.title = "IDE - Code Editor";
+    item.innerHTML = `
+      <span class="nav-item__icon" aria-hidden="true">${IDE_ICON_SVG}</span>
+      <span class="nav-item__text">IDE</span>
     `;
 
-    tab.addEventListener("mouseenter", function () {
-      tab.style.background = "linear-gradient(135deg, rgba(0, 212, 255, 0.2) 0%, rgba(0, 212, 255, 0.1) 100%)";
-      tab.style.borderColor = "rgba(0, 212, 255, 0.4)";
-      tab.style.transform = "translateX(2px)";
+    item.addEventListener("click", function (e) {
+      e.preventDefault();
+      toggleIdeView();
     });
 
-    tab.addEventListener("mouseleave", function () {
-      tab.style.background = "linear-gradient(135deg, rgba(0, 212, 255, 0.1) 0%, rgba(0, 212, 255, 0.05) 100%)";
-      tab.style.borderColor = "rgba(0, 212, 255, 0.2)";
-      tab.style.transform = "translateX(0)";
-    });
-
-    // Icon styling
-    const icon = tab.querySelector(".sidebar-icon");
-    if (icon) {
-      icon.style.cssText = `
-        font-size: 16px;
-        width: 20px;
-        text-align: center;
-      `;
-    }
-
-    return tab;
+    return item;
   }
 
-  function findSidebarContainer() {
-    // Try various selectors that might match the gateway sidebar
-    const selectors = [
-      // Common sidebar patterns
-      ".sidebar",
-      ".sidebar-nav",
-      ".side-nav",
-      "[class*='sidebar']",
-      "nav[class*='nav']",
-      // Gateway-specific patterns
-      ".app-sidebar",
-      ".main-sidebar",
-      "#sidebar",
-      "aside",
-      // Fallback - look for vertical nav structures
-      "[role='navigation']",
-    ];
-
-    for (const selector of selectors) {
-      const element = document.querySelector(selector);
-      if (element && isLikelySidebar(element)) {
-        return element;
-      }
-    }
-
-    // Last resort: find any nav-like vertical element
-    const navs = document.querySelectorAll("nav, aside, [class*='nav']");
-    for (const nav of navs) {
-      if (isLikelySidebar(nav)) {
-        return nav;
-      }
-    }
-
-    return null;
+  function createIdeFrame() {
+    const frame = document.createElement("iframe");
+    frame.id = "better-gateway-ide-frame";
+    frame.src = "/better-gateway/ide";
+    frame.style.cssText = `
+      width: 100%;
+      height: 100%;
+      border: none;
+      display: none;
+      position: absolute;
+      top: 0;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      background: #1e1e1e;
+    `;
+    return frame;
   }
 
-  function isLikelySidebar(element) {
-    // Check if element looks like a sidebar
-    if (!element) return false;
+  function toggleIdeView() {
+    if (ideViewActive) {
+      showChatView();
+    } else {
+      showIdeView();
+    }
+  }
+
+  function showIdeView() {
+    const main = document.querySelector("main.content");
+    if (!main) return;
+
+    let ideFrame = document.getElementById("better-gateway-ide-frame");
     
-    try {
-      const style = window.getComputedStyle(element);
-      const isVisible = style.display !== "none" && style.visibility !== "hidden";
-      
-      // If we can get bounding rect, use it for more precise detection
-      if (typeof element.getBoundingClientRect === "function") {
-        const rect = element.getBoundingClientRect();
-        // Sidebar characteristics:
-        // - Usually on the left side of the page
-        // - Relatively narrow (< 400px)
-        // - Has some height
-        const isLeftSide = rect.left < (window.innerWidth || 1024) / 2;
-        const isNarrow = rect.width < 400 || rect.width === 0; // 0 in jsdom
-        const hasSomeHeight = rect.height > 50 || rect.height === 0; // 0 in jsdom
-        
-        return isVisible && (rect.width === 0 || (isLeftSide && isNarrow && hasSomeHeight));
-      }
-      
-      // Fallback: just check visibility
-      return isVisible;
-    } catch (e) {
-      // If any error, assume it's a sidebar if it exists
-      return true;
+    // Create iframe if it doesn't exist
+    if (!ideFrame) {
+      ideFrame = createIdeFrame();
+      // Insert frame as sibling to main, inside the same parent
+      main.parentNode.style.position = "relative";
+      main.parentNode.appendChild(ideFrame);
     }
+
+    // Hide main content, show IDE
+    main.style.display = "none";
+    ideFrame.style.display = "block";
+
+    // Update nav item active states
+    const chatNav = document.querySelector('.nav-item[href="/chat"]');
+    const ideNav = document.getElementById("better-gateway-ide-nav");
+    
+    if (chatNav) chatNav.classList.remove("active");
+    if (ideNav) ideNav.classList.add("active");
+
+    ideViewActive = true;
+    console.log("[BetterGateway] Switched to IDE view");
   }
 
-  function injectIdeTab() {
+  function showChatView() {
+    const main = document.querySelector("main.content");
+    const ideFrame = document.getElementById("better-gateway-ide-frame");
+
+    // Show main content, hide IDE
+    if (main) main.style.display = "";
+    if (ideFrame) ideFrame.style.display = "none";
+
+    // Update nav item active states
+    const chatNav = document.querySelector('.nav-item[href="/chat"]');
+    const ideNav = document.getElementById("better-gateway-ide-nav");
+    
+    if (chatNav) chatNav.classList.add("active");
+    if (ideNav) ideNav.classList.remove("active");
+
+    ideViewActive = false;
+    console.log("[BetterGateway] Switched to Chat view");
+  }
+
+  function injectIdeNavItem() {
     if (ideTabInjected) return false;
-    
-    // Don't inject on the IDE page itself
-    if (window.location.pathname === "/better-gateway/ide") {
-      return false;
-    }
 
-    const sidebar = findSidebarContainer();
-    if (!sidebar) {
+    // Don't inject on the standalone IDE page
+    if (window.location && window.location.pathname === "/better-gateway/ide") {
       return false;
     }
 
     // Check if already injected
-    if (document.getElementById("better-gateway-ide-tab")) {
+    if (document.getElementById("better-gateway-ide-nav")) {
       ideTabInjected = true;
       return false;
     }
 
-    const ideTab = createIdeTab();
-    
-    // Try to find a good insertion point
-    // Look for existing nav items to insert after, or append to end
-    const existingItems = sidebar.querySelectorAll("a, button, [class*='item'], [class*='link']");
-    
-    if (existingItems.length > 0) {
-      // Insert after the last item
-      const lastItem = existingItems[existingItems.length - 1];
-      // Create a separator if there are other items
-      const separator = document.createElement("div");
-      separator.className = "better-gateway-separator";
-      separator.style.cssText = `
-        height: 1px;
-        background: rgba(255, 255, 255, 0.1);
-        margin: 8px 16px;
-      `;
-      
-      if (lastItem.parentNode === sidebar) {
-        sidebar.appendChild(separator);
-        sidebar.appendChild(ideTab);
-      } else {
-        // Items might be nested, try to find the right container
-        const container = lastItem.closest("ul, div, nav") || sidebar;
-        container.appendChild(separator);
-        container.appendChild(ideTab);
-      }
-    } else {
-      sidebar.appendChild(ideTab);
+    // Find the Chat section's nav-group__items container
+    // The gateway structure is: .nav-group > .nav-group__items > .nav-item[href="/chat"]
+    const chatLink = document.querySelector('.nav-item[href="/chat"]');
+    if (!chatLink) {
+      return false;
     }
 
+    const navItems = chatLink.parentElement;
+    if (!navItems || !navItems.classList.contains("nav-group__items")) {
+      return false;
+    }
+
+    // Create and insert IDE nav item after Chat
+    const ideNavItem = createIdeNavItem();
+    navItems.appendChild(ideNavItem);
+
     ideTabInjected = true;
-    console.log("[BetterGateway] IDE tab injected into sidebar");
+    console.log("[BetterGateway] IDE nav item injected below Chat");
     return true;
   }
 
-  function tryInjectIdeTab() {
+  function tryInjectIdeNavItem() {
     // Try immediately
-    if (injectIdeTab()) return;
+    if (injectIdeNavItem()) return;
 
-    // Retry with MutationObserver for dynamic sidebars
+    // Retry with MutationObserver for dynamic content
     const observer = new MutationObserver(function (mutations, obs) {
-      if (injectIdeTab()) {
+      if (injectIdeNavItem()) {
         obs.disconnect();
       }
     });
@@ -354,11 +319,11 @@
   if (document.readyState === "loading") {
     document.addEventListener("DOMContentLoaded", function () {
       updateStatus("connected", "Ready");
-      tryInjectIdeTab();
+      tryInjectIdeNavItem();
     });
   } else {
     updateStatus("connected", "Ready");
-    tryInjectIdeTab();
+    tryInjectIdeNavItem();
   }
 
   window.addEventListener("online", function () {
