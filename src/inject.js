@@ -731,36 +731,44 @@
     textarea.addEventListener("input", refreshMentionPicker);
     textarea.addEventListener("click", refreshMentionPicker);
     textarea.addEventListener("keydown", function (event) {
-      if (mentionState.pickerOpen) {
-        if (event.key === "ArrowDown") {
-          event.preventDefault();
-          mentionState.activeIndex = (mentionState.activeIndex + 1) % mentionState.pickerItems.length;
-          renderMentionPicker();
-          return;
+      const liveRange = findMentionRange(textarea.value, textarea.selectionStart || 0);
+
+      if (event.key === "ArrowDown" && mentionState.pickerOpen) {
+        event.preventDefault();
+        mentionState.activeIndex = (mentionState.activeIndex + 1) % mentionState.pickerItems.length;
+        renderMentionPicker();
+        return;
+      }
+      if (event.key === "ArrowUp" && mentionState.pickerOpen) {
+        event.preventDefault();
+        mentionState.activeIndex = (mentionState.activeIndex - 1 + mentionState.pickerItems.length) % mentionState.pickerItems.length;
+        renderMentionPicker();
+        return;
+      }
+      if (event.key === "Escape" && mentionState.pickerOpen) {
+        event.preventDefault();
+        closeMentionPicker();
+        return;
+      }
+
+      if (event.key === "Enter" && !event.shiftKey && (mentionState.pickerOpen || liveRange)) {
+        event.preventDefault();
+        event.stopPropagation();
+        if (typeof event.stopImmediatePropagation === "function") event.stopImmediatePropagation();
+        mentionState.suppressNextSubmit = true;
+        setTimeout(function () {
+          mentionState.suppressNextSubmit = false;
+        }, 0);
+
+        if (!mentionState.pickerOpen) {
+          refreshMentionPicker();
         }
-        if (event.key === "ArrowUp") {
-          event.preventDefault();
-          mentionState.activeIndex = (mentionState.activeIndex - 1 + mentionState.pickerItems.length) % mentionState.pickerItems.length;
-          renderMentionPicker();
-          return;
+
+        const selected = mentionState.pickerItems[mentionState.activeIndex] || mentionState.pickerItems[0];
+        if (selected) {
+          selectMentionFile(selected.path);
         }
-        if (event.key === "Enter" && !event.shiftKey) {
-          event.preventDefault();
-          event.stopPropagation();
-          if (typeof event.stopImmediatePropagation === "function") event.stopImmediatePropagation();
-          mentionState.suppressNextSubmit = true;
-          setTimeout(function () {
-            mentionState.suppressNextSubmit = false;
-          }, 0);
-          const selected = mentionState.pickerItems[mentionState.activeIndex];
-          if (selected) selectMentionFile(selected.path);
-          return;
-        }
-        if (event.key === "Escape") {
-          event.preventDefault();
-          closeMentionPicker();
-          return;
-        }
+        return;
       }
 
       if (event.key === "Backspace" && !textarea.value && mentionState.selected.length > 0) {
@@ -772,7 +780,7 @@
       if (event.key === "Enter" && !event.shiftKey) {
         queuePendingRefsForNextSend();
       }
-    });
+    }, true);
 
     const form = textarea.closest("form");
     if (form) {
