@@ -65,6 +65,17 @@ function sendError(res: ServerResponse, status: number, message: string): void {
 }
 
 /**
+ * Normalize path - treat "/" or empty as workspace root
+ */
+function normalizePath(dirPath: string): string {
+  if (!dirPath || dirPath === "/" || dirPath === ".") {
+    return ".";
+  }
+  // Remove leading slash to make it relative
+  return dirPath.replace(/^\/+/, "");
+}
+
+/**
  * List directory contents
  */
 async function listDirectory(
@@ -72,7 +83,8 @@ async function listDirectory(
   dirPath: string,
   recursive: boolean = false
 ): Promise<FileEntry[]> {
-  const fullPath = resolve(workspaceDir, dirPath);
+  const normalizedPath = normalizePath(dirPath);
+  const fullPath = resolve(workspaceDir, normalizedPath);
   const entries = await readdir(fullPath, { withFileTypes: true });
   
   const results: FileEntry[] = [];
@@ -144,7 +156,7 @@ export function createFileApiHandler(config: FileApiConfig) {
     try {
       // GET /api/files - List directory
       if (pathname === "/better-gateway/api/files" && method === "GET") {
-        const dirPath = url.searchParams.get("path") || "/";
+        const dirPath = normalizePath(url.searchParams.get("path") || "/");
         const recursive = url.searchParams.get("recursive") === "true";
         
         if (!isPathSafe(workspaceDir, dirPath)) {
