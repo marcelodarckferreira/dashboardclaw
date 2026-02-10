@@ -876,6 +876,21 @@
             if (typeof data === "string") {
               const frame = JSON.parse(data);
               if (frame && frame.type === "req" && frame.method === "chat.send" && frame.params) {
+                const liveRange = mentionState.textarea
+                  ? findMentionRange(mentionState.textarea.value, mentionState.textarea.selectionStart || 0)
+                  : null;
+
+                if (mentionState.pickerOpen || (liveRange && mentionState.textarea)) {
+                  if (!mentionState.pickerOpen) {
+                    refreshMentionPicker();
+                  }
+                  const selected = mentionState.pickerItems[mentionState.activeIndex] || mentionState.pickerItems[0];
+                  if (selected) {
+                    selectMentionFile(selected.path);
+                    return;
+                  }
+                }
+
                 const fileRefs = consumePendingFileRefs();
                 if (fileRefs.length > 0) {
                   if (typeof frame.params.message === "string") {
