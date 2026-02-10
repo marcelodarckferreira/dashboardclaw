@@ -63,34 +63,13 @@ describe("IDE Page Generator", () => {
       expect(html).toContain("id=\"tab-bar\"");
     });
 
-    it("should include integrated chat panel shell", () => {
+    it("should not include embedded IDE chat panel", () => {
       const html = generateIdePage();
 
-      expect(html).toContain('id="chat-panel"');
-      expect(html).toContain('id="chat-messages"');
-      expect(html).toContain('id="chat-input"');
-      expect(html).toContain('id="chat-send"');
-      expect(html).toContain('Ctrl+Shift+C');
-    });
-
-    it("should include @file mention picker and chips UI in chat composer", () => {
-      const html = generateIdePage();
-
-      expect(html).toContain('id="chat-file-picker"');
-      expect(html).toContain('id="chat-file-chips"');
-      expect(html).toContain('chat-file-chip');
-      expect(html).toContain('chat-file-option');
-    });
-
-    it("should include mention autocomplete handlers with keyboard selection", () => {
-      const html = generateIdePage();
-
-      expect(html).toContain('findMentionRange');
-      expect(html).toContain('refreshMentionPicker');
-      expect(html).toContain('selectMentionFile');
-      expect(html).toContain("e.key === 'ArrowDown'");
-      expect(html).toContain("e.key === 'ArrowUp'");
-      expect(html).toContain("state.chatMentionFiles.push(path)");
+      expect(html).not.toContain('id="chat-panel"');
+      expect(html).not.toContain('id="chat-input"');
+      expect(html).not.toContain('id="chat-send"');
+      expect(html).not.toContain('Ctrl+Shift+C');
     });
 
     it("should include toolbar with buttons", () => {
@@ -155,15 +134,6 @@ describe("IDE Page Generator", () => {
       
       expect(html).toContain("saveCurrentFile");
       expect(html).toContain("id=\"save-status\"");
-    });
-
-    it("should include chat transport protocol wiring", () => {
-      const html = generateIdePage();
-
-      expect(html).toContain("openclaw.control.settings.v1");
-      expect(html).toContain("chat.send");
-      expect(html).toContain("sendRequest('connect'");
-      expect(html).toContain("new WebSocket");
     });
 
     it("should include localStorage state persistence", () => {
