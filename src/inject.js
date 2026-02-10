@@ -234,6 +234,15 @@
       return false;
     }
 
+    // Intercept Chat link clicks when IDE is active
+    chatLink.addEventListener("click", function (e) {
+      if (ideViewActive) {
+        e.preventDefault();
+        e.stopPropagation();
+        showChatView();
+      }
+    });
+
     // Create and insert IDE nav item after Chat
     const ideNavItem = createIdeNavItem();
     navItems.appendChild(ideNavItem);
