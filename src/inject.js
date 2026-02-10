@@ -101,7 +101,8 @@
 
   // ==================== IDE Embedded View ====================
 
-  let ideViewActive = false;
+  // View modes: 'chat' | 'ide' | 'split'
+  let currentViewMode = 'chat';
 
   // SVG icon for code/IDE (matches gateway's feather icon style)
   const IDE_ICON_SVG = `
@@ -111,12 +112,20 @@
     </svg>
   `;
 
+  // SVG icon for split view
+  const SPLIT_ICON_SVG = `
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+      <rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect>
+      <line x1="12" y1="3" x2="12" y2="21"></line>
+    </svg>
+  `;
+
   function createIdeNavItem() {
     const item = document.createElement("a");
     item.id = "better-gateway-ide-nav";
     item.href = "#ide";
     item.className = "nav-item";
-    item.title = "IDE - Code Editor";
+    item.title = "IDE - Code Editor (click for split view, Shift+click for IDE only)";
     item.innerHTML = `
       <span class="nav-item__icon" aria-hidden="true">${IDE_ICON_SVG}</span>
       <span class="nav-item__text">IDE</span>
@@ -124,7 +133,21 @@
 
     item.addEventListener("click", function (e) {
       e.preventDefault();
-      toggleIdeView();
+      if (e.shiftKey) {
+        // Shift+click toggles IDE-only view
+        if (currentViewMode === 'ide') {
+          setViewMode('chat');
+        } else {
+          setViewMode('ide');
+        }
+      } else {
+        // Regular click toggles split view (Cursor-like experience)
+        if (currentViewMode === 'split') {
+          setViewMode('chat');
+        } else {
+          setViewMode('split');
+        }
+      }
     });
 
     return item;
@@ -135,72 +158,191 @@
     frame.id = "better-gateway-ide-frame";
     frame.src = "/better-gateway/ide";
     frame.style.cssText = `
-      width: 100%;
-      height: 100%;
       border: none;
       background: #1e1e1e;
+      display: none;
     `;
     return frame;
   }
 
-  function toggleIdeView() {
-    if (ideViewActive) {
-      showChatView();
+  function createSplitResizeHandle() {
+    const handle = document.createElement("div");
+    handle.id = "better-gateway-split-handle";
+    handle.style.cssText = `
+      width: 4px;
+      cursor: col-resize;
+      background: #3c3c3c;
+      display: none;
+      flex-shrink: 0;
+    `;
+    handle.addEventListener("mouseenter", function() {
+      handle.style.background = "#0078d4";
+    });
+    handle.addEventListener("mouseleave", function() {
+      if (!handle.dataset.dragging) {
+        handle.style.background = "#3c3c3c";
+      }
+    });
+    return handle;
+  }
+
+  function setupSplitResize() {
+    const handle = document.getElementById("better-gateway-split-handle");
+    const ideFrame = document.getElementById("better-gateway-ide-frame");
+    if (!handle || !ideFrame) return;
+
+    let isDragging = false;
+
+    handle.addEventListener("mousedown", function(e) {
+      isDragging = true;
+      handle.dataset.dragging = "true";
+      handle.style.background = "#0078d4";
+      document.body.style.cursor = "col-resize";
+      document.body.style.userSelect = "none";
+      // Keep receiving mouse events when cursor crosses the iframe.
+      ideFrame.style.pointerEvents = "none";
+      e.preventDefault();
+    });
+
+    document.addEventListener("mousemove", function(e) {
+      if (!isDragging) return;
+      const container = ideFrame.parentElement;
+      if (!container) return;
+      
+      const containerRect = container.getBoundingClientRect();
+      const newWidth = e.clientX - containerRect.left;
+      const minWidth = 300;
+      const maxWidth = containerRect.width - 350; // Leave room for chat
+      const clampedWidth = Math.min(Math.max(newWidth, minWidth), maxWidth);
+
+      ideFrame.style.width = clampedWidth + "px";
+      ideFrame.style.flex = "none";
+    });
+
+    document.addEventListener("mouseup", function() {
+      if (isDragging) {
+        isDragging = false;
+        delete handle.dataset.dragging;
+        handle.style.background = "#3c3c3c";
+        document.body.style.cursor = "";
+        document.body.style.userSelect = "";
+        ideFrame.style.pointerEvents = "";
+      }
+    });
+  }
+
+  function setViewMode(mode) {
+    const main = document.querySelector("main.content");
+    if (!main) return;
+
+    // Create or get the split container (flex wrapper for IDE | handle | chat)
+    let splitWrapper = document.getElementById("better-gateway-split-wrapper");
+    let ideFrame = document.getElementById("better-gateway-ide-frame");
+    let splitHandle = document.getElementById("better-gateway-split-handle");
+
+    if (!splitWrapper) {
+      // Create wrapper: flex row container that replaces main in the layout
+      splitWrapper = document.createElement("div");
+      splitWrapper.id = "better-gateway-split-wrapper";
+      splitWrapper.style.cssText = `
+        display: flex;
+        flex-direction: row;
+        flex: 1;
+        overflow: hidden;
+        min-width: 0;
+        min-height: 0;
+      `;
+      ideFrame = createIdeFrame();
+      splitHandle = createSplitResizeHandle();
+
+      // Wrap main: replace main with wrapper, put main inside wrapper
+      const parent = main.parentNode;
+      parent.replaceChild(splitWrapper, main);
+      splitWrapper.appendChild(ideFrame);
+      splitWrapper.appendChild(splitHandle);
+      splitWrapper.appendChild(main);
+
+      setupSplitResize();
     } else {
-      showIdeView();
+      ideFrame = document.getElementById("better-gateway-ide-frame");
+      splitHandle = document.getElementById("better-gateway-split-handle");
+    }
+
+    const chatNav = document.querySelector('.nav-item[href="/chat"]') 
+      || document.querySelector('.nav-item[href="/better-gateway/chat"]');
+    const ideNav = document.getElementById("better-gateway-ide-nav");
+
+    // Apply the view mode
+    if (mode === 'chat') {
+      // Chat only - hide IDE, chat takes full width
+      ideFrame.style.display = "none";
+      splitHandle.style.display = "none";
+      main.style.display = "";
+      main.style.flex = "1";
+      main.style.width = "";
+      main.style.minWidth = "";
+      main.style.overflow = "";
+      
+      if (chatNav) chatNav.classList.add("active");
+      if (ideNav) ideNav.classList.remove("active");
+      
+    } else if (mode === 'ide') {
+      // IDE only - IDE takes full width
+      ideFrame.style.display = "block";
+      ideFrame.style.width = "100%";
+      ideFrame.style.height = "100%";
+      ideFrame.style.flex = "1";
+      ideFrame.style.minWidth = "";
+      splitHandle.style.display = "none";
+      main.style.display = "none";
+      
+      if (chatNav) chatNav.classList.remove("active");
+      if (ideNav) ideNav.classList.add("active");
+      
+    } else if (mode === 'split') {
+      // Split view: IDE (left) | handle | Chat (right sidebar)
+      ideFrame.style.display = "block";
+      ideFrame.style.width = "55%";
+      ideFrame.style.height = "100%";
+      ideFrame.style.flex = "none";
+      ideFrame.style.minWidth = "280px";
+      splitHandle.style.display = "block";
+      main.style.display = "";
+      main.style.flex = "1";
+      main.style.width = "";
+      main.style.minWidth = "320px";
+      main.style.overflow = "auto";
+      
+      // Both nav items get a special state
+      if (chatNav) chatNav.classList.add("active");
+      if (ideNav) ideNav.classList.add("active");
+    }
+
+    currentViewMode = mode;
+    // Update legacy flag for nav click handlers
+    ideViewActive = (mode === 'ide' || mode === 'split');
+    console.log("[BetterGateway] View mode:", mode);
+  }
+
+  // Legacy function names for compatibility
+  function toggleIdeView() {
+    if (currentViewMode === 'ide' || currentViewMode === 'split') {
+      setViewMode('chat');
+    } else {
+      setViewMode('ide');
     }
   }
 
   function showIdeView() {
-    const main = document.querySelector("main.content");
-    if (!main) return;
-
-    // Create IDE frame if it doesn't exist
-    let ideFrame = document.getElementById("better-gateway-ide-frame");
-    if (!ideFrame) {
-      ideFrame = createIdeFrame();
-      ideFrame.style.display = "none";
-      main.parentNode.insertBefore(ideFrame, main.nextSibling);
-    }
-
-    // Hide main content, show IDE frame
-    main.style.display = "none";
-    ideFrame.style.display = "block";
-    ideFrame.style.width = "100%";
-    ideFrame.style.height = "100%";
-    ideFrame.style.flex = "1";
-
-    // Update nav item active states
-    const chatNav = document.querySelector('.nav-item[href="/chat"]') 
-      || document.querySelector('.nav-item[href="/better-gateway/chat"]');
-    const ideNav = document.getElementById("better-gateway-ide-nav");
-    
-    if (chatNav) chatNav.classList.remove("active");
-    if (ideNav) ideNav.classList.add("active");
-
-    ideViewActive = true;
-    console.log("[BetterGateway] Switched to IDE view");
+    setViewMode('ide');
   }
 
   function showChatView() {
-    const main = document.querySelector("main.content");
-    const ideFrame = document.getElementById("better-gateway-ide-frame");
-
-    // Show main content, hide IDE frame
-    if (main) main.style.display = "";
-    if (ideFrame) ideFrame.style.display = "none";
-
-    // Update nav item active states
-    const chatNav = document.querySelector('.nav-item[href="/chat"]') 
-      || document.querySelector('.nav-item[href="/better-gateway/chat"]');
-    const ideNav = document.getElementById("better-gateway-ide-nav");
-    
-    if (chatNav) chatNav.classList.add("active");
-    if (ideNav) ideNav.classList.remove("active");
-
-    ideViewActive = false;
-    console.log("[BetterGateway] Switched to Chat view");
+    setViewMode('chat');
   }
+
+  // Track if IDE/split view is active (for nav click handlers)
+  let ideViewActive = false;
 
   function injectIdeNavItem() {
     if (ideTabInjected) return false;

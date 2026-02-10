@@ -1,6 +1,7 @@
 /**
  * IDE Page Generator
  * Creates a full-featured code editor interface using Monaco Editor (CDN)
+ * With integrated chat sidebar for OpenClaw gateway communication
  */
 
 export interface IdePageConfig {
@@ -544,6 +545,7 @@ export function generateIdePage(config: Partial<IdePageConfig> = {}): string {
     ::-webkit-scrollbar-thumb:hover {
       background: #555;
     }
+    
   </style>
 </head>
 <body>

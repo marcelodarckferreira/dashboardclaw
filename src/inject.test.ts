@@ -390,35 +390,56 @@ describe("inject.js - WebSocket auto-reconnect", () => {
       expect(ideFrame?.getAttribute("src")).toBe("/better-gateway/ide");
     });
 
-    it("should hide main and show iframe when IDE view is shown", () => {
+    it("should show split view (both main and iframe) when IDE nav is clicked", () => {
       const { main } = createGatewaySidebar();
       window.eval(injectScript);
       
       const ideNav = window.document.getElementById("better-gateway-ide-nav");
       ideNav?.click();
       
-      // Main should be hidden, iframe should be visible
-      expect(main.style.display).toBe("none");
+      // Split view: both main and iframe are visible
+      expect(main.style.display).not.toBe("none");
       const ideFrame = window.document.getElementById("better-gateway-ide-frame");
       expect(ideFrame).not.toBeNull();
       expect(ideFrame?.style.display).toBe("block");
     });
 
-    it("should show main and hide iframe when switching back to Chat", () => {
+    it("should hide iframe when switching back to Chat from split view", () => {
       const { main } = createGatewaySidebar();
       window.eval(injectScript);
       
       const ideNav = window.document.getElementById("better-gateway-ide-nav");
       
-      // Switch to IDE
+      // Switch to split view
       ideNav?.click();
-      expect(main.style.display).toBe("none");
+      expect(main.style.display).not.toBe("none");
       
       // Switch back to Chat
       ideNav?.click();
       expect(main.style.display).toBe("");
       const ideFrame = window.document.getElementById("better-gateway-ide-frame");
       expect(ideFrame?.style.display).toBe("none");
+    });
+
+    it("should disable iframe pointer events while resizing and restore on mouseup", () => {
+      createGatewaySidebar();
+      window.eval(injectScript);
+
+      const ideNav = window.document.getElementById("better-gateway-ide-nav");
+      ideNav?.click();
+
+      const ideFrame = window.document.getElementById("better-gateway-ide-frame");
+      const splitHandle = window.document.getElementById("better-gateway-split-handle");
+
+      expect(ideFrame?.style.pointerEvents).toBe("");
+
+      splitHandle?.dispatchEvent(
+        new window.MouseEvent("mousedown", { bubbles: true, clientX: 600 })
+      );
+      expect(ideFrame?.style.pointerEvents).toBe("none");
+
+      window.document.dispatchEvent(new window.MouseEvent("mouseup", { bubbles: true }));
+      expect(ideFrame?.style.pointerEvents).toBe("");
     });
 
     it("should update active class when switching views", () => {
@@ -431,9 +452,9 @@ describe("inject.js - WebSocket auto-reconnect", () => {
       expect(chatLink.classList.contains("active")).toBe(true);
       expect(ideNav?.classList.contains("active")).toBe(false);
       
-      // Switch to IDE
+      // Switch to split view - both should be active
       ideNav?.click();
-      expect(chatLink.classList.contains("active")).toBe(false);
+      expect(chatLink.classList.contains("active")).toBe(true);
       expect(ideNav?.classList.contains("active")).toBe(true);
       
       // Switch back to Chat
