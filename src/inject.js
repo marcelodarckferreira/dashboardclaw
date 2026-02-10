@@ -199,6 +199,8 @@
       handle.style.background = "#0078d4";
       document.body.style.cursor = "col-resize";
       document.body.style.userSelect = "none";
+      // Keep receiving mouse events when cursor crosses the iframe.
+      ideFrame.style.pointerEvents = "none";
       e.preventDefault();
     });
 
@@ -211,11 +213,10 @@
       const newWidth = e.clientX - containerRect.left;
       const minWidth = 300;
       const maxWidth = containerRect.width - 350; // Leave room for chat
-      
-      if (newWidth >= minWidth && newWidth <= maxWidth) {
-        ideFrame.style.width = newWidth + "px";
-        ideFrame.style.flex = "none";
-      }
+      const clampedWidth = Math.min(Math.max(newWidth, minWidth), maxWidth);
+
+      ideFrame.style.width = clampedWidth + "px";
+      ideFrame.style.flex = "none";
     });
 
     document.addEventListener("mouseup", function() {
@@ -225,6 +226,7 @@
         handle.style.background = "#3c3c3c";
         document.body.style.cursor = "";
         document.body.style.userSelect = "";
+        ideFrame.style.pointerEvents = "";
       }
     });
   }

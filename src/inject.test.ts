@@ -421,6 +421,27 @@ describe("inject.js - WebSocket auto-reconnect", () => {
       expect(ideFrame?.style.display).toBe("none");
     });
 
+    it("should disable iframe pointer events while resizing and restore on mouseup", () => {
+      createGatewaySidebar();
+      window.eval(injectScript);
+
+      const ideNav = window.document.getElementById("better-gateway-ide-nav");
+      ideNav?.click();
+
+      const ideFrame = window.document.getElementById("better-gateway-ide-frame");
+      const splitHandle = window.document.getElementById("better-gateway-split-handle");
+
+      expect(ideFrame?.style.pointerEvents).toBe("");
+
+      splitHandle?.dispatchEvent(
+        new window.MouseEvent("mousedown", { bubbles: true, clientX: 600 })
+      );
+      expect(ideFrame?.style.pointerEvents).toBe("none");
+
+      window.document.dispatchEvent(new window.MouseEvent("mouseup", { bubbles: true }));
+      expect(ideFrame?.style.pointerEvents).toBe("");
+    });
+
     it("should update active class when switching views", () => {
       const { chatLink } = createGatewaySidebar();
       window.eval(injectScript);
