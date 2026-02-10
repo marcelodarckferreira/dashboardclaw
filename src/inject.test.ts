@@ -390,29 +390,29 @@ describe("inject.js - WebSocket auto-reconnect", () => {
       expect(ideFrame?.getAttribute("src")).toBe("/better-gateway/ide");
     });
 
-    it("should hide main and show iframe when IDE view is shown", () => {
+    it("should show split view (both main and iframe) when IDE nav is clicked", () => {
       const { main } = createGatewaySidebar();
       window.eval(injectScript);
       
       const ideNav = window.document.getElementById("better-gateway-ide-nav");
       ideNav?.click();
       
-      // Main should be hidden, iframe should be visible
-      expect(main.style.display).toBe("none");
+      // Split view: both main and iframe are visible
+      expect(main.style.display).not.toBe("none");
       const ideFrame = window.document.getElementById("better-gateway-ide-frame");
       expect(ideFrame).not.toBeNull();
       expect(ideFrame?.style.display).toBe("block");
     });
 
-    it("should show main and hide iframe when switching back to Chat", () => {
+    it("should hide iframe when switching back to Chat from split view", () => {
       const { main } = createGatewaySidebar();
       window.eval(injectScript);
       
       const ideNav = window.document.getElementById("better-gateway-ide-nav");
       
-      // Switch to IDE
+      // Switch to split view
       ideNav?.click();
-      expect(main.style.display).toBe("none");
+      expect(main.style.display).not.toBe("none");
       
       // Switch back to Chat
       ideNav?.click();
@@ -431,9 +431,9 @@ describe("inject.js - WebSocket auto-reconnect", () => {
       expect(chatLink.classList.contains("active")).toBe(true);
       expect(ideNav?.classList.contains("active")).toBe(false);
       
-      // Switch to IDE
+      // Switch to split view - both should be active
       ideNav?.click();
-      expect(chatLink.classList.contains("active")).toBe(false);
+      expect(chatLink.classList.contains("active")).toBe(true);
       expect(ideNav?.classList.contains("active")).toBe(true);
       
       // Switch back to Chat

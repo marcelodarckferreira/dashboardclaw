@@ -125,7 +125,7 @@
     item.id = "better-gateway-ide-nav";
     item.href = "#ide";
     item.className = "nav-item";
-    item.title = "IDE - Code Editor (click to toggle, Shift+click for split view)";
+    item.title = "IDE - Code Editor (click for split view, Shift+click for IDE only)";
     item.innerHTML = `
       <span class="nav-item__icon" aria-hidden="true">${IDE_ICON_SVG}</span>
       <span class="nav-item__text">IDE</span>
@@ -134,18 +134,18 @@
     item.addEventListener("click", function (e) {
       e.preventDefault();
       if (e.shiftKey) {
-        // Shift+click toggles split view
-        if (currentViewMode === 'split') {
-          setViewMode('chat');
-        } else {
-          setViewMode('split');
-        }
-      } else {
-        // Regular click toggles between chat and IDE
+        // Shift+click toggles IDE-only view
         if (currentViewMode === 'ide') {
           setViewMode('chat');
         } else {
           setViewMode('ide');
+        }
+      } else {
+        // Regular click toggles split view (Cursor-like experience)
+        if (currentViewMode === 'split') {
+          setViewMode('chat');
+        } else {
+          setViewMode('split');
         }
       }
     });
@@ -292,12 +292,14 @@
     }
 
     currentViewMode = mode;
+    // Update legacy flag for nav click handlers
+    ideViewActive = (mode === 'ide' || mode === 'split');
     console.log("[BetterGateway] View mode:", mode);
   }
 
   // Legacy function names for compatibility
   function toggleIdeView() {
-    if (currentViewMode === 'ide') {
+    if (currentViewMode === 'ide' || currentViewMode === 'split') {
       setViewMode('chat');
     } else {
       setViewMode('ide');
@@ -312,7 +314,7 @@
     setViewMode('chat');
   }
 
-  // For backwards compat with tests
+  // Track if IDE/split view is active (for nav click handlers)
   let ideViewActive = false;
 
   function injectIdeNavItem() {
