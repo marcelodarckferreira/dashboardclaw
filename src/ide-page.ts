@@ -648,6 +648,9 @@ export function generateIdePage(config: Partial<IdePageConfig> = {}): string {
       <button class="toolbar-btn" id="open-folder-btn" title="Open Folder">
         📂 Open Folder
       </button>
+      <button class="toolbar-btn" id="refresh-btn" title="Refresh File Tree">
+        ↻ Refresh
+      </button>
       <span id="workspace-path" title="Current workspace folder">/</span>
       <span id="save-status"></span>
     </div>
@@ -1496,6 +1499,9 @@ export function generateIdePage(config: Partial<IdePageConfig> = {}): string {
           const input = prompt('Open folder (relative to workspace root):', state.workspaceRoot);
           if (input === null) return;
           await setWorkspaceRoot(input);
+        });
+        document.getElementById('refresh-btn').addEventListener('click', async () => {
+          await refreshFileTree();
         });
         
         // Restore open tabs from localStorage

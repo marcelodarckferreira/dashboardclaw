@@ -79,6 +79,7 @@ describe("IDE Page Generator", () => {
       expect(html).toContain("id=\"toggle-sidebar\"");
       expect(html).toContain("id=\"new-file-btn\"");
       expect(html).toContain("id=\"open-folder-btn\"");
+      expect(html).toContain("id=\"refresh-btn\"");
       expect(html).toContain("id=\"workspace-path\"");
     });
 
