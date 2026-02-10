@@ -540,7 +540,8 @@ describe("inject.js - WebSocket auto-reconnect", () => {
 
       const rawSend = OriginalWebSocket.mock.instances[OriginalWebSocket.mock.instances.length - 1]._rawSend;
       const payload = JSON.parse(rawSend.mock.calls[0][0]);
-      expect(payload.params.message).toContain('Attached files: AGENTS.md');
+      expect(payload.params.message).toContain('<file path="AGENTS.md">');
+      expect(payload.params.message).toContain('context content');
     });
   });
   });

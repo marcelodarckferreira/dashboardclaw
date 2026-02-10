@@ -1,7 +1,7 @@
 (function () {
   "use strict";
 
-  const INJECT_VERSION = "2026-02-10.6";
+  const INJECT_VERSION = "2026-02-10.7";
 
   const config = window.__BETTER_GATEWAY_CONFIG__ || {
     reconnectIntervalMs: 3000,
@@ -660,17 +660,20 @@
     const body = String(baseMessage || "");
     if (!fileRefs || fileRefs.length === 0) return body;
 
-    const summary = fileRefs
+    const blocks = fileRefs
       .map(function (ref) {
         const path = String((ref && ref.path) || "");
         if (!path) return "";
-        const parts = path.split("/");
-        return parts[parts.length - 1] || path;
+        var content = String((ref && ref.content) || "");
+        if (!content) return "<file path=\"" + path + "\">(could not read file)</file>";
+        var tag = "<file path=\"" + path + "\"";
+        if (ref.truncated) tag += " truncated=\"true\"";
+        tag += ">\n" + content + "\n</file>";
+        return tag;
       })
-      .filter(Boolean)
-      .join(", ");
-    if (!summary) return body;
-    return body + "\n\nAttached files: " + summary;
+      .filter(Boolean);
+    if (blocks.length === 0) return body;
+    return body + "\n\n" + blocks.join("\n\n");
   }
 
   function attachChatComposerEnhancements() {
