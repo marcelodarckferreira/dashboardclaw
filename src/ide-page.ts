@@ -1178,9 +1178,13 @@ export function generateIdePage(config: Partial<IdePageConfig> = {}): string {
       updateTreeSelection();
       
       // Restore view state if we have it
-      const viewState = localStorage.getItem('viewState:' + path);
-      if (viewState) {
-        state.editor.restoreViewState(JSON.parse(viewState));
+      try {
+        const viewState = localStorage.getItem('viewState:' + path);
+        if (viewState) {
+          state.editor.restoreViewState(JSON.parse(viewState));
+        }
+      } catch (_e) {
+        // Corrupted view state in localStorage; ignore and start fresh
       }
     }
     
@@ -1427,14 +1431,36 @@ export function generateIdePage(config: Partial<IdePageConfig> = {}): string {
     }
     
     // ==================== Initialize ====================
+
+    function showInitError(message) {
+      const el = elements.loading;
+      el.innerHTML = '<div style="text-align:center;max-width:420px;padding:24px;">'
+        + '<div style="font-size:24px;margin-bottom:16px;">⚠️</div>'
+        + '<div style="color:var(--text-primary);margin-bottom:12px;">' + message + '</div>'
+        + '<button onclick="location.reload()" style="background:var(--accent);color:#fff;border:none;padding:8px 20px;border-radius:6px;cursor:pointer;font-size:13px;">Retry</button>'
+        + '</div>';
+    }
     
     async function init() {
+      // Safety timeout: if init doesn't complete in 30s, show error with retry
+      const initTimeout = setTimeout(() => {
+        showInitError('Editor is taking too long to load. The CDN may be unreachable.');
+      }, 30000);
+
       // Load Monaco
       require.config({
         paths: { vs: 'https://cdn.jsdelivr.net/npm/monaco-editor@${monacoVersion}/min/vs' }
       });
+
+      // Handle AMD module load errors (CDN failures, network issues)
+      require.onError = function(err) {
+        clearTimeout(initTimeout);
+        console.error('[IDE] Monaco failed to load:', err);
+        showInitError('Failed to load the editor from CDN. Check your network connection.');
+      };
       
       require(['vs/editor/editor.main'], async function() {
+        try {
         // Create editor
         state.editor = monaco.editor.create(elements.editorContainer, {
           theme: '${theme}',
@@ -1455,8 +1481,10 @@ export function generateIdePage(config: Partial<IdePageConfig> = {}): string {
         // Save view state on switch
         state.editor.onDidChangeCursorPosition(() => {
           if (state.activeTab) {
-            const viewState = state.editor.saveViewState();
-            localStorage.setItem('viewState:' + state.activeTab, JSON.stringify(viewState));
+            try {
+              const viewState = state.editor.saveViewState();
+              localStorage.setItem('viewState:' + state.activeTab, JSON.stringify(viewState));
+            } catch (_e) { /* localStorage full or unavailable */ }
           }
         });
         
@@ -1505,35 +1533,49 @@ export function generateIdePage(config: Partial<IdePageConfig> = {}): string {
         });
         
         // Restore open tabs from localStorage
-        const savedTabs = localStorage.getItem('openTabs');
-        const savedActive = localStorage.getItem('activeTab');
-        if (savedTabs) {
-          const tabs = JSON.parse(savedTabs);
-          for (const path of tabs) {
-            if (state.workspaceRoot !== '/' && !path.startsWith(state.workspaceRoot + '/')) {
-              continue;
+        try {
+          const savedTabs = localStorage.getItem('openTabs');
+          const savedActive = localStorage.getItem('activeTab');
+          if (savedTabs) {
+            const tabs = JSON.parse(savedTabs);
+            for (const path of tabs) {
+              if (state.workspaceRoot !== '/' && !path.startsWith(state.workspaceRoot + '/')) {
+                continue;
+              }
+              state.openTabs.push(path);
             }
-            state.openTabs.push(path);
+            if (savedActive && state.openTabs.includes(savedActive)) {
+              await switchToTab(savedActive);
+            } else if (state.openTabs.length > 0) {
+              await switchToTab(state.openTabs[0]);
+            }
+            renderTabs();
           }
-          if (savedActive && state.openTabs.includes(savedActive)) {
-            await switchToTab(savedActive);
-          } else if (state.openTabs.length > 0) {
-            await switchToTab(state.openTabs[0]);
-          }
-          renderTabs();
+        } catch (restoreErr) {
+          console.warn('[IDE] Failed to restore tabs from localStorage:', restoreErr);
+          state.openTabs = [];
+          state.activeTab = null;
         }
         
         // Save tabs on change
         const saveTabs = () => {
-          localStorage.setItem('openTabs', JSON.stringify(state.openTabs));
-          localStorage.setItem('activeTab', state.activeTab || '');
-          localStorage.setItem('workspaceRoot', state.workspaceRoot);
+          try {
+            localStorage.setItem('openTabs', JSON.stringify(state.openTabs));
+            localStorage.setItem('activeTab', state.activeTab || '');
+            localStorage.setItem('workspaceRoot', state.workspaceRoot);
+          } catch (_e) { /* localStorage full or unavailable */ }
         };
         setInterval(saveTabs, 5000);
         window.addEventListener('beforeunload', saveTabs);
-        
-        // Hide loading
-        elements.loading.classList.add('hidden');
+
+        } catch (initErr) {
+          console.error('[IDE] Initialization error:', initErr);
+          showInitError('Editor failed to initialize: ' + (initErr.message || initErr));
+        } finally {
+          clearTimeout(initTimeout);
+          // Always dismiss the loading spinner
+          elements.loading.classList.add('hidden');
+        }
       });
     }
     
