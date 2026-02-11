@@ -1492,7 +1492,10 @@ export function generateIdePage(config: Partial<IdePageConfig> = {}): string {
     let monacoBase = '';
 
     async function ensureMonacoLoader() {
-      if (window.require) return;
+      if (window.require) {
+        console.log('[IDE] AMD loader already present');
+        return;
+      }
       const sources = [
         { loader: '/better-gateway/monaco/vs/loader.js', base: '/better-gateway/monaco/vs' },
         { loader: 'https://cdn.jsdelivr.net/npm/monaco-editor@${monacoVersion}/min/vs/loader.js', base: 'https://cdn.jsdelivr.net/npm/monaco-editor@${monacoVersion}/min/vs' },
@@ -1502,14 +1505,17 @@ export function generateIdePage(config: Partial<IdePageConfig> = {}): string {
       let lastError = null;
       for (const { loader, base } of sources) {
         try {
+          console.log('[IDE] Trying loader source:', loader);
           await loadScript(loader);
           if (window.require) {
+            console.log('[IDE] Loader succeeded from:', loader);
             monacoBase = base;
             return;
           }
+          console.warn('[IDE] Script loaded but window.require not defined:', loader);
         } catch (err) {
           lastError = err;
-          console.warn('Monaco loader source failed:', loader, err);
+          console.warn('[IDE] Loader source failed:', loader, err);
         }
       }
 
@@ -1528,18 +1534,56 @@ export function generateIdePage(config: Partial<IdePageConfig> = {}): string {
           return;
         }
 
+        let settled = false;
+        const editorTimeout = setTimeout(() => {
+          if (!settled) {
+            settled = true;
+            console.error('[IDE] loadMonacoEditor timed out after 20s, base:', monacoBase);
+            reject(new Error('Monaco editor loading timed out (20s). Check network / console for blocked requests.'));
+          }
+        }, 20000);
+
+        console.log('[IDE] Calling require([vs/editor/editor.main]) with base:', monacoBase);
         window.require.config({ paths: { vs: monacoBase } });
-        window.require(['vs/editor/editor.main'], () => resolve(), (err) => {
-          console.error('Monaco editor failed to load from:', monacoBase, err);
-          reject(err || new Error('Unable to load Monaco editor bundle'));
+        window.require(['vs/editor/editor.main'], () => {
+          if (!settled) {
+            settled = true;
+            clearTimeout(editorTimeout);
+            resolve();
+          }
+        }, (err) => {
+          if (!settled) {
+            settled = true;
+            clearTimeout(editorTimeout);
+            console.error('[IDE] Monaco editor failed to load from:', monacoBase, err);
+            reject(err || new Error('Unable to load Monaco editor bundle'));
+          }
         });
       });
     }
 
     async function init() {
+      const initTimeout = setTimeout(() => {
+        console.error('[IDE] Initialization timed out after 30s');
+        showInitError('Editor is taking too long to load. The server may be unreachable.');
+      }, 30000);
+
       try {
+        console.log('[IDE] Starting init...');
         await ensureMonacoLoader();
+        console.log('[IDE] Loader ready, monacoBase =', monacoBase);
+
+        // Wire up require.onError so AMD-level failures don't go silent
+        if (window.require && window.require.config) {
+          window.require.config({
+            onError: function(err) {
+              console.error('[IDE] AMD require.onError:', err);
+            }
+          });
+        }
+
         await loadMonacoEditor();
+        console.log('[IDE] Monaco editor module loaded');
 
         // Create editor
         state.editor = monaco.editor.create(elements.editorContainer, {
@@ -1654,9 +1698,13 @@ export function generateIdePage(config: Partial<IdePageConfig> = {}): string {
         window.addEventListener('beforeunload', saveTabs);
         
       } catch (err) {
-        console.error('IDE initialization failed:', err);
+        console.error('[IDE] Initialization failed:', err);
+        clearTimeout(initTimeout);
         showLoadingError((err && err.message) ? err.message : 'Network or browser policy blocked Monaco assets.');
+        return;
       }
+      clearTimeout(initTimeout);
+      console.log('[IDE] Initialization complete');
     }
     
     init();
