@@ -700,7 +700,6 @@ export function generateIdePage(config: Partial<IdePageConfig> = {}): string {
     <div class="context-item" data-action="delete">🗑️ Delete</div>
   </div>
 
-  <script src="https://cdn.jsdelivr.net/npm/monaco-editor@${monacoVersion}/min/vs/loader.js"></script>
   <script>
     // Configuration
     const API_BASE = '/better-gateway/api/files';
@@ -1443,13 +1442,77 @@ export function generateIdePage(config: Partial<IdePageConfig> = {}): string {
     
     // ==================== Initialize ====================
     
-    async function init() {
-      // Load Monaco
-      require.config({
-        paths: { vs: 'https://cdn.jsdelivr.net/npm/monaco-editor@${monacoVersion}/min/vs' }
+    function showLoadingError(message) {
+      elements.loading.innerHTML = '<div style="max-width:560px;color:#ddd;font:13px/1.5 system-ui,-apple-system,Segoe UI,Roboto,sans-serif;padding:16px 20px;text-align:center">'
+        + '<div style="font-size:16px;font-weight:600;margin-bottom:8px">Monaco failed to load</div>'
+        + '<div style="opacity:.9">' + message + '</div>'
+        + '<button id="ide-retry" style="margin-top:14px;background:#0e639c;border:1px solid #1177bb;color:#fff;border-radius:6px;padding:6px 12px;cursor:pointer">Retry</button>'
+        + '</div>';
+      const retryBtn = document.getElementById('ide-retry');
+      if (retryBtn) retryBtn.addEventListener('click', () => window.location.reload());
+    }
+
+    function loadScript(url) {
+      return new Promise((resolve, reject) => {
+        const existing = document.querySelector('script[data-src="' + url + '"]');
+        if (existing) {
+          if (window.require) return resolve();
+          existing.addEventListener('load', () => resolve(), { once: true });
+          existing.addEventListener('error', () => reject(new Error('Failed to load ' + url)), { once: true });
+          return;
+        }
+
+        const script = document.createElement('script');
+        script.src = url;
+        script.async = true;
+        script.dataset.src = url;
+        script.onload = () => resolve();
+        script.onerror = () => reject(new Error('Failed to load ' + url));
+        document.head.appendChild(script);
       });
-      
-      require(['vs/editor/editor.main'], async function() {
+    }
+
+    async function ensureMonacoLoader() {
+      if (window.require) return;
+      const sources = [
+        'https://cdn.jsdelivr.net/npm/monaco-editor@${monacoVersion}/min/vs/loader.js',
+        'https://unpkg.com/monaco-editor@${monacoVersion}/min/vs/loader.js',
+      ];
+
+      let lastError = null;
+      for (const src of sources) {
+        try {
+          await loadScript(src);
+          if (window.require) return;
+        } catch (err) {
+          lastError = err;
+          console.warn('Monaco loader source failed:', src, err);
+        }
+      }
+
+      throw lastError || new Error('Monaco AMD loader unavailable');
+    }
+
+    function loadMonacoEditor() {
+      return new Promise((resolve, reject) => {
+        if (!window.require) {
+          reject(new Error('Monaco require() loader missing'));
+          return;
+        }
+
+        window.require.config({
+          paths: { vs: 'https://cdn.jsdelivr.net/npm/monaco-editor@${monacoVersion}/min/vs' }
+        });
+
+        window.require(['vs/editor/editor.main'], () => resolve(), (err) => reject(err));
+      });
+    }
+
+    async function init() {
+      try {
+        await ensureMonacoLoader();
+        await loadMonacoEditor();
+
         // Create editor
         state.editor = monaco.editor.create(elements.editorContainer, {
           theme: '${theme}',
@@ -1549,7 +1612,10 @@ export function generateIdePage(config: Partial<IdePageConfig> = {}): string {
         
         // Hide loading
         elements.loading.classList.add('hidden');
-      });
+      } catch (err) {
+        console.error('IDE initialization failed:', err);
+        showLoadingError((err && err.message) ? err.message : 'Network or browser policy blocked Monaco assets.');
+      }
     }
     
     init();
