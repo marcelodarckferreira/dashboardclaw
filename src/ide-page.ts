@@ -1192,9 +1192,13 @@ export function generateIdePage(config: Partial<IdePageConfig> = {}): string {
       updateTreeSelection();
       
       // Restore view state if we have it
-      const viewState = localStorage.getItem('viewState:' + path);
-      if (viewState) {
-        state.editor.restoreViewState(JSON.parse(viewState));
+      try {
+        const viewState = localStorage.getItem('viewState:' + path);
+        if (viewState) {
+          state.editor.restoreViewState(JSON.parse(viewState));
+        }
+      } catch (_e) {
+        // Corrupted view state in localStorage; ignore and start fresh
       }
     }
     
@@ -1443,6 +1447,7 @@ export function generateIdePage(config: Partial<IdePageConfig> = {}): string {
     // ==================== Initialize ====================
     
     function showLoadingError(message) {
+      elements.loading.classList.remove('hidden');
       elements.loading.innerHTML = '<div style="max-width:560px;color:#ddd;font:13px/1.5 system-ui,-apple-system,Segoe UI,Roboto,sans-serif;padding:16px 20px;text-align:center">'
         + '<div style="font-size:16px;font-weight:600;margin-bottom:8px">Monaco failed to load</div>'
         + '<div style="opacity:.9">' + message + '</div>'
@@ -1551,8 +1556,10 @@ export function generateIdePage(config: Partial<IdePageConfig> = {}): string {
         // Save view state on switch
         state.editor.onDidChangeCursorPosition(() => {
           if (state.activeTab) {
-            const viewState = state.editor.saveViewState();
-            localStorage.setItem('viewState:' + state.activeTab, JSON.stringify(viewState));
+            try {
+              const viewState = state.editor.saveViewState();
+              localStorage.setItem('viewState:' + state.activeTab, JSON.stringify(viewState));
+            } catch (_e) { /* localStorage full or unavailable */ }
           }
         });
         
@@ -1606,29 +1613,37 @@ export function generateIdePage(config: Partial<IdePageConfig> = {}): string {
         elements.loading.classList.add('hidden');
 
         // Restore open tabs from localStorage
-        const savedTabs = localStorage.getItem('openTabs');
-        const savedActive = localStorage.getItem('activeTab');
-        if (savedTabs) {
-          const tabs = JSON.parse(savedTabs);
-          for (const path of tabs) {
-            if (state.workspaceRoot !== '/' && !path.startsWith(state.workspaceRoot + '/')) {
-              continue;
+        try {
+          const savedTabs = localStorage.getItem('openTabs');
+          const savedActive = localStorage.getItem('activeTab');
+          if (savedTabs) {
+            const tabs = JSON.parse(savedTabs);
+            for (const path of tabs) {
+              if (state.workspaceRoot !== '/' && !path.startsWith(state.workspaceRoot + '/')) {
+                continue;
+              }
+              state.openTabs.push(path);
             }
-            state.openTabs.push(path);
+            if (savedActive && state.openTabs.includes(savedActive)) {
+              await switchToTab(savedActive);
+            } else if (state.openTabs.length > 0) {
+              await switchToTab(state.openTabs[0]);
+            }
+            renderTabs();
           }
-          if (savedActive && state.openTabs.includes(savedActive)) {
-            await switchToTab(savedActive);
-          } else if (state.openTabs.length > 0) {
-            await switchToTab(state.openTabs[0]);
-          }
-          renderTabs();
+        } catch (restoreErr) {
+          console.warn('[IDE] Failed to restore tabs from localStorage:', restoreErr);
+          state.openTabs = [];
+          state.activeTab = null;
         }
         
         // Save tabs on change
         const saveTabs = () => {
-          localStorage.setItem('openTabs', JSON.stringify(state.openTabs));
-          localStorage.setItem('activeTab', state.activeTab || '');
-          localStorage.setItem('workspaceRoot', state.workspaceRoot);
+          try {
+            localStorage.setItem('openTabs', JSON.stringify(state.openTabs));
+            localStorage.setItem('activeTab', state.activeTab || '');
+            localStorage.setItem('workspaceRoot', state.workspaceRoot);
+          } catch (_e) { /* localStorage full or unavailable */ }
         };
         setInterval(saveTabs, 5000);
         window.addEventListener('beforeunload', saveTabs);
