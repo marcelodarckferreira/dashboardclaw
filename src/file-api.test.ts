@@ -126,6 +126,32 @@ describe("File API", () => {
       expect(body.files.length).toBeGreaterThan(0);
     });
 
+    it("should accept workspace/ prefixed paths", async () => {
+      const req = createMockReq("GET", "/better-gateway/api/files", { path: "workspace/subdir" });
+      const res = createMockRes();
+
+      await handler(req, res, "/better-gateway/api/files");
+
+      expect(res._statusCode).toBe(200);
+      const body = JSON.parse(res._body);
+      expect(body.files.length).toBe(1);
+      expect(body.files[0].path).toBe("subdir/nested.txt");
+    });
+
+    it("should accept absolute paths inside workspace", async () => {
+      const req = createMockReq("GET", "/better-gateway/api/files", {
+        path: path.join(testWorkspace, "subdir"),
+      });
+      const res = createMockRes();
+
+      await handler(req, res, "/better-gateway/api/files");
+
+      expect(res._statusCode).toBe(200);
+      const body = JSON.parse(res._body);
+      expect(body.files.length).toBe(1);
+      expect(body.files[0].path).toBe("subdir/nested.txt");
+    });
+
     it("should reject path traversal attempts", async () => {
       const req = createMockReq("GET", "/better-gateway/api/files", { path: "../../../etc" });
       const res = createMockRes();
@@ -170,6 +196,18 @@ describe("File API", () => {
       expect(res._statusCode).toBe(200);
       const body = JSON.parse(res._body);
       expect(body.content).toBe("Nested file");
+    });
+
+    it("should read file with workspace/ prefix and normalize response path", async () => {
+      const req = createMockReq("GET", "/better-gateway/api/files/read", { path: "workspace/test.txt" });
+      const res = createMockRes();
+
+      await handler(req, res, "/better-gateway/api/files/read");
+
+      expect(res._statusCode).toBe(200);
+      const body = JSON.parse(res._body);
+      expect(body.content).toBe("Hello World");
+      expect(body.path).toBe("test.txt");
     });
 
     it("should return 400 for missing path", async () => {

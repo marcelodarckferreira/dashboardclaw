@@ -740,9 +740,24 @@ export function generateIdePage(config: Partial<IdePageConfig> = {}): string {
     
     function normalizeWorkspaceRoot(path) {
       if (!path || path === '/' || path === '.') return '/';
-      let normalized = String(path).trim();
+      let normalized = String(path).trim().replace(/\\/g, '/');
+
+      // Accept absolute workspace paths (e.g. /root/.openclaw/workspace/projects/foo)
+      const absWorkspacePrefix = '/root/.openclaw/workspace/';
+      if (normalized === '/root/.openclaw/workspace') return '/';
+      if (normalized.startsWith(absWorkspacePrefix)) {
+        normalized = normalized.slice(absWorkspacePrefix.length);
+      }
+
       while (normalized.startsWith('/')) normalized = normalized.slice(1);
       while (normalized.endsWith('/')) normalized = normalized.slice(0, -1);
+
+      // Accept "workspace/..." alias from prompt/user habit
+      if (normalized === 'workspace') return '/';
+      if (normalized.startsWith('workspace/')) {
+        normalized = normalized.slice('workspace/'.length);
+      }
+
       return normalized || '/';
     }
 
