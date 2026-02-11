@@ -146,6 +146,14 @@ describe("IDE Page Generator", () => {
       expect(html).toContain("activeTab");
     });
 
+    it("should normalize workspace aliases used by Open Folder", () => {
+      const html = generateIdePage();
+
+      expect(html).toContain("workspace/");
+      expect(html).toContain("/root/.openclaw/workspace/");
+      expect(html).toContain("normalizeWorkspaceRoot");
+    });
+
     it("should include resize handle for sidebar", () => {
       const html = generateIdePage();
       

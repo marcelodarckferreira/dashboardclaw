@@ -700,7 +700,6 @@ export function generateIdePage(config: Partial<IdePageConfig> = {}): string {
     <div class="context-item" data-action="delete">🗑️ Delete</div>
   </div>
 
-  <script src="https://cdn.jsdelivr.net/npm/monaco-editor@${monacoVersion}/min/vs/loader.js"></script>
   <script>
     // Configuration
     const API_BASE = '/better-gateway/api/files';
@@ -740,9 +739,24 @@ export function generateIdePage(config: Partial<IdePageConfig> = {}): string {
     
     function normalizeWorkspaceRoot(path) {
       if (!path || path === '/' || path === '.') return '/';
-      let normalized = String(path).trim();
+      let normalized = String(path).trim().replace(/\\/g, '/');
+
+      // Accept absolute workspace paths (e.g. /root/.openclaw/workspace/projects/foo)
+      const absWorkspacePrefix = '/root/.openclaw/workspace/';
+      if (normalized === '/root/.openclaw/workspace') return '/';
+      if (normalized.startsWith(absWorkspacePrefix)) {
+        normalized = normalized.slice(absWorkspacePrefix.length);
+      }
+
       while (normalized.startsWith('/')) normalized = normalized.slice(1);
       while (normalized.endsWith('/')) normalized = normalized.slice(0, -1);
+
+      // Accept "workspace/..." alias from prompt/user habit
+      if (normalized === 'workspace') return '/';
+      if (normalized.startsWith('workspace/')) {
+        normalized = normalized.slice('workspace/'.length);
+      }
+
       return normalized || '/';
     }
 
@@ -1441,26 +1455,96 @@ export function generateIdePage(config: Partial<IdePageConfig> = {}): string {
         + '</div>';
     }
     
-    async function init() {
-      // Safety timeout: if init doesn't complete in 30s, show error with retry
-      const initTimeout = setTimeout(() => {
-        showInitError('Editor is taking too long to load. The CDN may be unreachable.');
-      }, 30000);
+    function showLoadingError(message) {
+      elements.loading.classList.remove('hidden');
+      elements.loading.innerHTML = '<div style="max-width:560px;color:#ddd;font:13px/1.5 system-ui,-apple-system,Segoe UI,Roboto,sans-serif;padding:16px 20px;text-align:center">'
+        + '<div style="font-size:16px;font-weight:600;margin-bottom:8px">Monaco failed to load</div>'
+        + '<div style="opacity:.9">' + message + '</div>'
+        + '<button id="ide-retry" style="margin-top:14px;background:#0e639c;border:1px solid #1177bb;color:#fff;border-radius:6px;padding:6px 12px;cursor:pointer">Retry</button>'
+        + '</div>';
+      const retryBtn = document.getElementById('ide-retry');
+      if (retryBtn) retryBtn.addEventListener('click', () => window.location.reload());
+    }
 
-      // Load Monaco
-      require.config({
-        paths: { vs: 'https://cdn.jsdelivr.net/npm/monaco-editor@${monacoVersion}/min/vs' }
+    function loadScript(url) {
+      return new Promise((resolve, reject) => {
+        const existing = document.querySelector('script[data-src="' + url + '"]');
+        if (existing) {
+          if (window.require) return resolve();
+          existing.addEventListener('load', () => resolve(), { once: true });
+          existing.addEventListener('error', () => reject(new Error('Failed to load ' + url)), { once: true });
+          return;
+        }
+
+        const script = document.createElement('script');
+        script.src = url;
+        script.async = true;
+        script.dataset.src = url;
+        script.onload = () => resolve();
+        script.onerror = () => reject(new Error('Failed to load ' + url));
+        document.head.appendChild(script);
       });
+    }
 
-      // Handle AMD module load errors (CDN failures, network issues)
-      require.onError = function(err) {
-        clearTimeout(initTimeout);
-        console.error('[IDE] Monaco failed to load:', err);
-        showInitError('Failed to load the editor from CDN. Check your network connection.');
-      };
-      
-      require(['vs/editor/editor.main'], async function() {
+    async function ensureMonacoLoader() {
+      if (window.require) return;
+      const sources = [
+        '/better-gateway/monaco/vs/loader.js',
+        'https://cdn.jsdelivr.net/npm/monaco-editor@${monacoVersion}/min/vs/loader.js',
+        'https://unpkg.com/monaco-editor@${monacoVersion}/min/vs/loader.js',
+      ];
+
+      let lastError = null;
+      for (const src of sources) {
         try {
+          await loadScript(src);
+          if (window.require) return;
+        } catch (err) {
+          lastError = err;
+          console.warn('Monaco loader source failed:', src, err);
+        }
+      }
+
+      throw lastError || new Error('Monaco AMD loader unavailable');
+    }
+
+    function loadMonacoEditor() {
+      return new Promise((resolve, reject) => {
+        if (!window.require) {
+          reject(new Error('Monaco require() loader missing'));
+          return;
+        }
+
+        const bases = [
+          '/better-gateway/monaco/vs',
+          'https://cdn.jsdelivr.net/npm/monaco-editor@${monacoVersion}/min/vs',
+          'https://unpkg.com/monaco-editor@${monacoVersion}/min/vs',
+        ];
+
+        let idx = 0;
+        const tryNext = (lastErr) => {
+          if (idx >= bases.length) {
+            reject(lastErr || new Error('Unable to load Monaco editor bundle'));
+            return;
+          }
+
+          const base = bases[idx++];
+          window.require.config({ paths: { vs: base } });
+          window.require(['vs/editor/editor.main'], () => resolve(), (err) => {
+            console.warn('Monaco editor source failed:', base, err);
+            tryNext(err);
+          });
+        };
+
+        tryNext(null);
+      });
+    }
+
+    async function init() {
+      try {
+        await ensureMonacoLoader();
+        await loadMonacoEditor();
+
         // Create editor
         state.editor = monaco.editor.create(elements.editorContainer, {
           theme: '${theme}',
@@ -1492,9 +1576,6 @@ export function generateIdePage(config: Partial<IdePageConfig> = {}): string {
         state.workspaceRoot = normalizeWorkspaceRoot(savedWorkspaceRoot || '/');
         updateWorkspacePathLabel();
 
-        // Load file tree
-        await refreshFileTree();
-        
         // Setup UI
         setupKeyboardShortcuts();
         setupResizeHandle();
@@ -1532,6 +1613,14 @@ export function generateIdePage(config: Partial<IdePageConfig> = {}): string {
           await refreshFileTree();
         });
         
+        // Load file tree in background (don't block IDE render)
+        refreshFileTree().catch(err => {
+          console.error('Initial file tree load failed:', err);
+        });
+
+        // Show editor shell immediately; async data can continue loading
+        elements.loading.classList.add('hidden');
+
         // Restore open tabs from localStorage
         try {
           const savedTabs = localStorage.getItem('openTabs');
@@ -1567,16 +1656,11 @@ export function generateIdePage(config: Partial<IdePageConfig> = {}): string {
         };
         setInterval(saveTabs, 5000);
         window.addEventListener('beforeunload', saveTabs);
-
-        } catch (initErr) {
-          console.error('[IDE] Initialization error:', initErr);
-          showInitError('Editor failed to initialize: ' + (initErr.message || initErr));
-        } finally {
-          clearTimeout(initTimeout);
-          // Always dismiss the loading spinner
-          elements.loading.classList.add('hidden');
-        }
-      });
+        
+      } catch (err) {
+        console.error('IDE initialization failed:', err);
+        showLoadingError((err && err.message) ? err.message : 'Network or browser policy blocked Monaco assets.');
+      }
     }
     
     init();

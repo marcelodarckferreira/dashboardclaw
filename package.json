@@ -1,6 +1,6 @@
 {
-  "name": "@thisisjeron/better-gateway",
-  "version": "1.0.1",
+  "name": "@thisisjeron/openclaw-better-gateway",
+  "version": "1.1.0",
   "description": "OpenClaw plugin that enhances the gateway UI with auto-reconnect and connection monitoring",
   "type": "module",
   "main": "dist/index.js",
@@ -34,7 +34,9 @@
     "openclaw.plugin.json",
     "README.md"
   ],
-  "dependencies": {},
+  "dependencies": {
+    "monaco-editor": "^0.52.0"
+  },
   "devDependencies": {
     "@types/node": "^20.14.0",
     "jsdom": "^26.0.0",

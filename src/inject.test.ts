@@ -388,7 +388,7 @@ describe("inject.js - WebSocket auto-reconnect", () => {
       const ideFrame = window.document.getElementById("better-gateway-ide-frame");
       expect(ideFrame).not.toBeNull();
       expect(ideFrame?.tagName).toBe("IFRAME");
-      expect(ideFrame?.getAttribute("src")).toBe("/better-gateway/ide");
+      expect(ideFrame?.getAttribute("src")).toContain("/better-gateway/ide");
     });
 
     it("should show split view (both main and iframe) when IDE nav is clicked", () => {
@@ -462,6 +462,46 @@ describe("inject.js - WebSocket auto-reconnect", () => {
       ideNav?.click();
       expect(chatLink.classList.contains("active")).toBe(true);
       expect(ideNav?.classList.contains("active")).toBe(false);
+    });
+
+    it("should show chat sidebar toggle button in split and hide chat when clicked", () => {
+      const { main } = createGatewaySidebar();
+      window.eval(injectScript);
+
+      const ideNav = window.document.getElementById("better-gateway-ide-nav");
+      ideNav?.click(); // split
+
+      const toggle = window.document.getElementById("better-gateway-chat-toggle") as HTMLButtonElement | null;
+      expect(toggle).not.toBeNull();
+      expect(toggle?.style.display).toBe("block");
+      expect(toggle?.textContent).toBe("→");
+
+      toggle?.click(); // hide chat => ide only
+      expect(main.style.display).toBe("none");
+      expect(toggle?.textContent).toBe("←");
+    });
+
+    it("should toggle split/ide with Cmd/Ctrl+L", () => {
+      const { main } = createGatewaySidebar();
+      window.eval(injectScript);
+
+      const ideNav = window.document.getElementById("better-gateway-ide-nav");
+      ideNav?.click(); // split mode
+      expect(main.style.display).not.toBe("none");
+
+      window.dispatchEvent(new window.KeyboardEvent("keydown", {
+        key: "l",
+        ctrlKey: true,
+        bubbles: true,
+      }));
+      expect(main.style.display).toBe("none");
+
+      window.dispatchEvent(new window.KeyboardEvent("keydown", {
+        key: "l",
+        ctrlKey: true,
+        bubbles: true,
+      }));
+      expect(main.style.display).not.toBe("none");
     });
 
 

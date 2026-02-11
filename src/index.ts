@@ -266,12 +266,42 @@ export default {
           if (handled) return true;
         }
 
+        // Serve local Monaco assets (preferred over CDN)
+        if (pathname.startsWith("/better-gateway/monaco/")) {
+          const relPath = pathname.slice("/better-gateway/monaco/".length);
+          const monacoPath = join(__dirname, "..", "node_modules", "monaco-editor", "min", relPath);
+          try {
+            const body = readFileSync(monacoPath);
+            const contentType = relPath.endsWith(".js")
+              ? "application/javascript"
+              : relPath.endsWith(".css")
+                ? "text/css"
+                : relPath.endsWith(".ttf")
+                  ? "font/ttf"
+                  : "application/octet-stream";
+            res.writeHead(200, {
+              "Content-Type": contentType,
+              "Content-Length": body.length,
+              "Cache-Control": "public, max-age=31536000, immutable",
+            });
+            res.end(body);
+            return true;
+          } catch {
+            res.writeHead(404, { "Content-Type": "text/plain" });
+            res.end("Not found");
+            return true;
+          }
+        }
+
         // Serve the IDE page
         if (pathname === "/better-gateway/ide") {
           const html = generateIdePage({ theme: "vs-dark" });
           res.writeHead(200, {
             "Content-Type": "text/html",
             "Content-Length": Buffer.byteLength(html),
+            "Cache-Control": "no-store, no-cache, must-revalidate, proxy-revalidate",
+            Pragma: "no-cache",
+            Expires: "0",
           });
           res.end(html);
           api.logger.debug("Served IDE page");

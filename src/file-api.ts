@@ -1,6 +1,6 @@
 import { IncomingMessage, ServerResponse } from "node:http";
 import { readdir, readFile, writeFile, unlink, stat, mkdir } from "node:fs/promises";
-import { join, relative, resolve, dirname } from "node:path";
+import { join, relative, resolve, dirname, isAbsolute } from "node:path";
 
 interface FileEntry {
   name: string;
@@ -18,12 +18,59 @@ interface FileApiConfig {
 const DEFAULT_MAX_FILE_SIZE = 10 * 1024 * 1024; // 10MB
 
 /**
+ * Resolve a requested path to a path inside the workspace.
+ * Accepts:
+ * - workspace-relative paths (e.g. "projects/foo")
+ * - paths prefixed with "workspace/" (e.g. "workspace/projects/foo")
+ * - absolute paths inside workspaceDir (e.g. "/root/.openclaw/workspace/projects/foo")
+ */
+function resolveWorkspacePath(workspaceDir: string, requestedPath: string): string | null {
+  if (requestedPath.includes("\0")) {
+    return null;
+  }
+
+  let normalized = requestedPath.replace(/\\/g, "/").trim();
+
+  if (!normalized || normalized === "/" || normalized === ".") {
+    normalized = ".";
+  }
+
+  if (isAbsolute(normalized)) {
+    const abs = resolve(normalized);
+    const rel = relative(workspaceDir, abs);
+    if (!rel || rel === ".") {
+      return workspaceDir;
+    }
+    if (rel.startsWith("..") || isAbsolute(rel)) {
+      return null;
+    }
+    return abs;
+  }
+
+  normalized = normalized.replace(/^\/+/, "").replace(/\/+$/, "");
+
+  if (normalized === "workspace" || normalized.startsWith("workspace/")) {
+    normalized = normalized.slice("workspace".length).replace(/^\/+/, "");
+  }
+
+  if (!normalized || normalized === ".") {
+    normalized = ".";
+  }
+
+  const resolved = resolve(workspaceDir, normalized);
+  const rel = relative(workspaceDir, resolved);
+  if (rel.startsWith("..") || isAbsolute(rel)) {
+    return null;
+  }
+
+  return resolved;
+}
+
+/**
  * Validates that a path is within the workspace (prevents directory traversal)
  */
 function isPathSafe(workspaceDir: string, requestedPath: string): boolean {
-  const resolved = resolve(workspaceDir, requestedPath);
-  const rel = relative(workspaceDir, resolved);
-  return !rel.startsWith("..") && !resolve(workspaceDir, rel).includes("\0");
+  return resolveWorkspacePath(workspaceDir, requestedPath) !== null;
 }
 
 /**
@@ -65,14 +112,16 @@ function sendError(res: ServerResponse, status: number, message: string): void {
 }
 
 /**
- * Normalize path - treat "/" or empty as workspace root
+ * Normalize a path for API operations to workspace-relative form.
  */
-function normalizePath(dirPath: string): string {
-  if (!dirPath || dirPath === "/" || dirPath === ".") {
-    return ".";
+function normalizePath(workspaceDir: string, dirPath: string): string {
+  const resolved = resolveWorkspacePath(workspaceDir, dirPath);
+  if (!resolved) {
+    return dirPath;
   }
-  // Remove leading slash to make it relative
-  return dirPath.replace(/^\/+/, "");
+
+  const rel = relative(workspaceDir, resolved);
+  return rel && rel !== "" ? rel : ".";
 }
 
 /**
@@ -83,7 +132,7 @@ async function listDirectory(
   dirPath: string,
   recursive: boolean = false
 ): Promise<FileEntry[]> {
-  const normalizedPath = normalizePath(dirPath);
+  const normalizedPath = normalizePath(workspaceDir, dirPath);
   const fullPath = resolve(workspaceDir, normalizedPath);
   const entries = await readdir(fullPath, { withFileTypes: true });
   
@@ -156,7 +205,7 @@ export function createFileApiHandler(config: FileApiConfig) {
     try {
       // GET /api/files - List directory
       if (pathname === "/better-gateway/api/files" && method === "GET") {
-        const dirPath = normalizePath(url.searchParams.get("path") || "/");
+        const dirPath = normalizePath(workspaceDir, url.searchParams.get("path") || "/");
         const recursive = url.searchParams.get("recursive") === "true";
         
         if (!isPathSafe(workspaceDir, dirPath)) {
@@ -183,7 +232,11 @@ export function createFileApiHandler(config: FileApiConfig) {
           return true;
         }
         
-        const fullPath = resolve(workspaceDir, filePath);
+        const fullPath = resolveWorkspacePath(workspaceDir, filePath);
+        if (!fullPath) {
+          sendError(res, 403, "Access denied: path outside workspace");
+          return true;
+        }
         const stats = await stat(fullPath);
         
         if (stats.size > maxFileSize) {
@@ -193,7 +246,7 @@ export function createFileApiHandler(config: FileApiConfig) {
         
         const content = await readFile(fullPath, "utf-8");
         sendJson(res, 200, {
-          path: filePath,
+          path: normalizePath(workspaceDir, filePath),
           content,
           size: stats.size,
           modified: stats.mtime.toISOString(),
@@ -217,13 +270,17 @@ export function createFileApiHandler(config: FileApiConfig) {
           return true;
         }
         
-        const fullPath = resolve(workspaceDir, filePath);
+        const fullPath = resolveWorkspacePath(workspaceDir, filePath);
+        if (!fullPath) {
+          sendError(res, 403, "Access denied: path outside workspace");
+          return true;
+        }
         
         // Ensure directory exists
         await mkdir(dirname(fullPath), { recursive: true });
         
         await writeFile(fullPath, content, "utf-8");
-        sendJson(res, 200, { ok: true, path: filePath });
+        sendJson(res, 200, { ok: true, path: normalizePath(workspaceDir, filePath) });
         return true;
       }
       
@@ -241,9 +298,13 @@ export function createFileApiHandler(config: FileApiConfig) {
           return true;
         }
         
-        const fullPath = resolve(workspaceDir, filePath);
+        const fullPath = resolveWorkspacePath(workspaceDir, filePath);
+        if (!fullPath) {
+          sendError(res, 403, "Access denied: path outside workspace");
+          return true;
+        }
         await unlink(fullPath);
-        sendJson(res, 200, { ok: true, path: filePath });
+        sendJson(res, 200, { ok: true, path: normalizePath(workspaceDir, filePath) });
         return true;
       }
       
@@ -262,9 +323,13 @@ export function createFileApiHandler(config: FileApiConfig) {
           return true;
         }
         
-        const fullPath = resolve(workspaceDir, dirPath);
+        const fullPath = resolveWorkspacePath(workspaceDir, dirPath);
+        if (!fullPath) {
+          sendError(res, 403, "Access denied: path outside workspace");
+          return true;
+        }
         await mkdir(fullPath, { recursive: true });
-        sendJson(res, 200, { ok: true, path: dirPath });
+        sendJson(res, 200, { ok: true, path: normalizePath(workspaceDir, dirPath) });
         return true;
       }
       
