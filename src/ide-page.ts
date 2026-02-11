@@ -1445,6 +1445,15 @@ export function generateIdePage(config: Partial<IdePageConfig> = {}): string {
     }
     
     // ==================== Initialize ====================
+
+    function showInitError(message) {
+      const el = elements.loading;
+      el.innerHTML = '<div style="text-align:center;max-width:420px;padding:24px;">'
+        + '<div style="font-size:24px;margin-bottom:16px;">⚠️</div>'
+        + '<div style="color:var(--text-primary);margin-bottom:12px;">' + message + '</div>'
+        + '<button onclick="location.reload()" style="background:var(--accent);color:#fff;border:none;padding:8px 20px;border-radius:6px;cursor:pointer;font-size:13px;">Retry</button>'
+        + '</div>';
+    }
     
     function showLoadingError(message) {
       elements.loading.classList.remove('hidden');
