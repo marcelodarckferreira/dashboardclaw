@@ -1,7 +1,7 @@
 import { IncomingMessage, ServerResponse, request as httpRequest } from "node:http";
-import { readFileSync } from "node:fs";
+import { readFileSync, existsSync } from "node:fs";
 import { fileURLToPath } from "node:url";
-import { dirname, join } from "node:path";
+import { dirname, join, resolve } from "node:path";
 import { createFileApiHandler, DEFAULT_MAX_FILE_SIZE } from "./file-api.js";
 import { generateIdePage } from "./ide-page.js";
 
@@ -234,8 +234,17 @@ export default {
       ...(api.pluginConfig as Partial<PluginConfig> || {}),
     };
     
-    // Resolve workspace directory
-    const workspaceDir = api.resolvePath("");
+    // Resolve workspace directory.
+    // api.resolvePath("") may return empty; fall back to <cwd>/workspace if it exists.
+    let workspaceDir = api.resolvePath("");
+    if (!workspaceDir) {
+      const cwdWorkspace = resolve(process.cwd(), "workspace");
+      if (existsSync(cwdWorkspace)) {
+        workspaceDir = cwdWorkspace;
+      } else {
+        workspaceDir = process.cwd();
+      }
+    }
     
     api.logger.info(
       `Better Gateway loaded (reconnect: ${config.reconnectIntervalMs}ms, max: ${config.maxReconnectAttempts}, workspace: ${workspaceDir})`

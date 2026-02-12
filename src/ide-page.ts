@@ -965,6 +965,27 @@ export function generateIdePage(config: Partial<IdePageConfig> = {}): string {
         updateTreeSelection();
       } catch (err) {
         console.error('Failed to refresh file tree:', err);
+        // If the saved workspace root doesn't exist, reset to root and retry
+        if (state.workspaceRoot !== '/') {
+          console.warn('[IDE] Workspace root not found, falling back to /');
+          state.workspaceRoot = '/';
+          updateWorkspacePathLabel();
+          try {
+            localStorage.removeItem('workspaceRoot');
+            localStorage.removeItem('openTabs');
+            localStorage.removeItem('activeTab');
+          } catch (_e) { /* ignore */ }
+          try {
+            state.files = await fetchFiles('/');
+            const tree = buildTree(state.files);
+            elements.fileTree.innerHTML = '';
+            renderTree(tree, elements.fileTree);
+            updateTreeSelection();
+          } catch (retryErr) {
+            console.error('[IDE] Fallback file tree load also failed:', retryErr);
+            elements.fileTree.innerHTML = '<div style="padding:16px;color:#888;font-size:12px;">Unable to load files. Check console for details.</div>';
+          }
+        }
       }
     }
     
