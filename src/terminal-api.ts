@@ -8,7 +8,8 @@
  * @types/ws or @types/node-pty being installed.
  */
 
-import type { IncomingMessage, Server } from "node:http";
+import type { IncomingMessage } from "node:http";
+import { createServer } from "node:http";
 import type { Duplex } from "node:stream";
 
 // ---------------------------------------------------------------------------
@@ -104,7 +105,18 @@ function loadPty(logger: TerminalLogger): Promise<boolean> {
 function loadWs(logger: TerminalLogger): Promise<IWsModule> {
   if (_wsPromise) return _wsPromise;
   _wsPromise = import(WS_PKG).then((mod: Record<string, unknown>) => {
-    const wsmod = (mod.default ?? mod) as unknown as IWsModule;
+    // ws ESM: mod.default is the WebSocket class with .WebSocketServer attached
+    // ws CJS via jiti: mod.default may be the module object, or mod itself
+    const raw = mod.default ?? mod;
+    let wsmod: IWsModule;
+    if (typeof (raw as any).WebSocketServer === "function") {
+      wsmod = raw as unknown as IWsModule;
+    } else if (typeof (raw as any).default?.WebSocketServer === "function") {
+      // double-default (jiti CJS interop)
+      wsmod = (raw as any).default as unknown as IWsModule;
+    } else {
+      throw new Error(`ws module loaded but WebSocketServer not found (keys: ${Object.keys(raw as object).join(", ")})`);
+    }
     _wsModule = wsmod;
     return wsmod;
   });
@@ -125,8 +137,6 @@ export function createTerminalManager(
   logger: TerminalLogger,
   workspaceDir: string,
 ) {
-  let serverAttached = false;
-
   // Start loading both modules eagerly so they're warm by the time a
   // connection arrives.
   loadPty(logger);
@@ -247,11 +257,17 @@ export function createTerminalManager(
     });
   }
 
-  // ---- server attachment ------------------------------------------------
+  // ---- standalone WebSocket server on a side port -----------------------
+  // The gateway's upgrade handler catches ALL WebSocket connections before
+  // plugins can intercept them, so we spin up our own HTTP server on a
+  // separate port dedicated to the terminal WebSocket.
 
-  async function attachToServer(server: Server): Promise<void> {
-    if (serverAttached) return;
-    serverAttached = true;
+  const TERMINAL_WS_PORT = 18790;
+  let wsServerStarted = false;
+
+  async function startWsServer(): Promise<void> {
+    if (wsServerStarted) return;
+    wsServerStarted = true;
 
     let wsmod: IWsModule;
     try {
@@ -263,38 +279,44 @@ export function createTerminalManager(
 
     const wss = new wsmod.WebSocketServer({ noServer: true });
 
+    const server = createServer((_req, res) => {
+      res.writeHead(200, { "Content-Type": "text/plain" });
+      res.end("terminal ws endpoint");
+    });
+
     server.on(
       "upgrade",
       (req: IncomingMessage, socket: Duplex, head: Buffer) => {
-        const url = new URL(
-          req.url || "/",
-          `http://${req.headers.host || "localhost"}`,
-        );
-        if (url.pathname !== "/better-gateway/terminal/ws") return;
         if (socket.destroyed) return;
-
         wss.handleUpgrade(req, socket, head, (wsSocket) => {
           handleConnection(wsSocket);
         });
       },
     );
 
-    logger.info("Terminal: WebSocket upgrade handler registered");
+    server.listen(TERMINAL_WS_PORT, "127.0.0.1", () => {
+      logger.info(`Terminal: WebSocket server listening on ws://127.0.0.1:${TERMINAL_WS_PORT}`);
+    });
+
+    server.on("error", (err: Error) => {
+      logger.error(`Terminal: WebSocket server error — ${err.message}`);
+      wsServerStarted = false;
+    });
   }
 
   // ---- public API -------------------------------------------------------
 
   return {
     /**
-     * Call from any HTTP handler to lazily attach the WebSocket upgrade
-     * listener to the underlying HTTP server.
+     * Call from any HTTP handler to lazily start the terminal WebSocket
+     * server on its dedicated port.
      */
-    ensureAttached(req: IncomingMessage): void {
-      if (serverAttached) return;
-      const sock = req.socket as unknown as { server?: Server } | undefined;
-      const srv = sock?.server;
-      if (srv) attachToServer(srv);
+    ensureAttached(_req: IncomingMessage): void {
+      if (!wsServerStarted) startWsServer();
     },
+
+    /** The port the terminal WebSocket server listens on. */
+    wsPort: TERMINAL_WS_PORT,
 
     /** Returns true if node-pty is installed and loaded. */
     isAvailable(): Promise<boolean> {

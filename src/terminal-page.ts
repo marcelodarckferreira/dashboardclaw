@@ -172,7 +172,11 @@ export function generateTerminalPage(
 
     // ---- WebSocket ----
     var protocol = location.protocol === 'https:' ? 'wss:' : 'ws:';
-    var wsUrl    = protocol + '//' + location.host + '/better-gateway/terminal/ws';
+    // Terminal WebSocket runs on a dedicated side port (gateway upgrade
+    // handler intercepts all WS on the main port).
+    var wsPort   = 18790;
+    var wsHost   = location.hostname + ':' + wsPort;
+    var wsUrl    = protocol + '//' + wsHost + '/terminal/ws';
 
     var ws = null;
     var reconnTimer = null;
