@@ -10,6 +10,7 @@
 
 import type { IncomingMessage } from "node:http";
 import { createServer } from "node:http";
+import { createRequire } from "node:module";
 import type { Duplex } from "node:stream";
 
 // ---------------------------------------------------------------------------
@@ -69,9 +70,16 @@ interface TerminalLogger {
 }
 
 // ---------------------------------------------------------------------------
-// Cached dynamic imports — using string variables so TypeScript does NOT try
-// to resolve the module at compile time. This lets us compile cleanly even
-// when ws / node-pty aren't installed (or have no type declarations).
+// Cached dynamic imports
+//
+// When OpenClaw loads plugins via jiti, bare `import("ws")` / `import("node-pty")`
+// resolve from the *gateway's* node_modules, not the plugin's. So the plugin's
+// own dependencies are invisible. We use `createRequire` anchored at this file's
+// location to force resolution from the plugin's own node_modules, then fall back
+// to a bare dynamic import() for environments where it works natively.
+//
+// String variables (WS_PKG, PTY_PKG) dodge TS static module resolution so the
+// project compiles cleanly even when these packages aren't installed locally.
 // ---------------------------------------------------------------------------
 
 let _pty: INodePty | null = null;
@@ -84,17 +92,52 @@ let _wsPromise: Promise<IWsModule> | null = null;
 const WS_PKG: string = "ws";
 const PTY_PKG: string = "node-pty";
 
+// Require function anchored at this file so it resolves from the plugin's node_modules
+let _pluginRequire: NodeRequire | null = null;
+function getPluginRequire(): NodeRequire {
+  if (!_pluginRequire) {
+    try {
+      // ESM: import.meta.url is available
+      _pluginRequire = createRequire(import.meta.url);
+    } catch {
+      // CJS fallback (shouldn't happen but just in case)
+      _pluginRequire = createRequire(__filename);
+    }
+  }
+  return _pluginRequire;
+}
+
+/**
+ * Try to load a module: first via plugin-local require(), then via bare import().
+ * Returns the module exports object.
+ */
+async function pluginImport(pkg: string): Promise<Record<string, unknown>> {
+  // Strategy 1: createRequire from plugin directory (works under jiti)
+  try {
+    const req = getPluginRequire();
+    const mod = req(pkg);
+    return typeof mod === "object" && mod !== null
+      ? (mod as Record<string, unknown>)
+      : { default: mod };
+  } catch {
+    // require() failed — fall through to dynamic import
+  }
+
+  // Strategy 2: bare dynamic import (works in native ESM / standard Node)
+  return import(pkg) as Promise<Record<string, unknown>>;
+}
+
 function loadPty(logger: TerminalLogger): Promise<boolean> {
   if (_ptyPromise) return _ptyPromise;
-  _ptyPromise = import(PTY_PKG).then(
-    (mod: Record<string, unknown>) => {
+  _ptyPromise = pluginImport(PTY_PKG).then(
+    (mod) => {
       _pty = (mod.default ?? mod) as unknown as INodePty;
       logger.info("Terminal: node-pty loaded");
       return true;
     },
-    () => {
+    (err) => {
       logger.warn(
-        "Terminal: node-pty not available — install it for terminal support",
+        `Terminal: node-pty not available — ${err instanceof Error ? err.message : err}`,
       );
       return false;
     },
@@ -104,7 +147,7 @@ function loadPty(logger: TerminalLogger): Promise<boolean> {
 
 function loadWs(logger: TerminalLogger): Promise<IWsModule> {
   if (_wsPromise) return _wsPromise;
-  _wsPromise = import(WS_PKG).then((mod: Record<string, unknown>) => {
+  _wsPromise = pluginImport(WS_PKG).then((mod) => {
     // Hunt for WebSocketServer across all possible jiti/ESM/CJS interop shapes
     const candidates = [
       mod,
