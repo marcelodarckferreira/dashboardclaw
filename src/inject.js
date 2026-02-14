@@ -592,13 +592,19 @@
   function injectIdeNavItem() {
     if (ideTabInjected) return false;
 
-    // Don't inject on the standalone IDE page
-    if (window.location && window.location.pathname === "/better-gateway/ide") {
+    // Don't inject on standalone pages (IDE / Terminal)
+    if (window.location && (
+      window.location.pathname === "/better-gateway/ide" ||
+      window.location.pathname === "/better-gateway/terminal"
+    )) {
       return false;
     }
 
-    // Check if already injected
-    if (document.getElementById("better-gateway-ide-nav")) {
+    // Check if BOTH nav items already exist — only then skip entirely.
+    // If only IDE exists (old inject.js ran first), we still need to add CLI.
+    var existingIdeNav = document.getElementById("better-gateway-ide-nav");
+    var existingCliNav = document.getElementById("better-gateway-cli-nav");
+    if (existingIdeNav && existingCliNav) {
       ideTabInjected = true;
       return false;
     }
@@ -617,7 +623,7 @@
       return false;
     }
 
-    // Intercept Chat link clicks when IDE is active
+    // Intercept Chat link clicks when IDE/CLI is active
     chatLink.addEventListener("click", function (e) {
       if (ideViewActive) {
         e.preventDefault();
@@ -630,8 +636,10 @@
     // This ensures the gateway's SPA routing works properly
     const allNavItems = document.querySelectorAll(".nav-item");
     allNavItems.forEach(function (navItem) {
-      // Skip Chat and IDE links (handled separately)
-      if (navItem === chatLink || navItem.id === "better-gateway-ide-nav") {
+      // Skip Chat, IDE, and CLI links (handled separately)
+      if (navItem === chatLink
+        || navItem.id === "better-gateway-ide-nav"
+        || navItem.id === "better-gateway-cli-nav") {
         return;
       }
       
@@ -643,13 +651,17 @@
       });
     });
 
-    // Create and insert IDE nav item after Chat
-    const ideNavItem = createIdeNavItem();
-    navItems.appendChild(ideNavItem);
+    // Create and insert IDE nav item (if not already present)
+    if (!existingIdeNav) {
+      const ideNavItem = createIdeNavItem();
+      navItems.appendChild(ideNavItem);
+    }
 
-    // Create and insert CLI nav item after IDE
-    const cliNavItem = createCliNavItem();
-    navItems.appendChild(cliNavItem);
+    // Create and insert CLI nav item (if not already present)
+    if (!existingCliNav) {
+      const cliNavItem = createCliNavItem();
+      navItems.appendChild(cliNavItem);
+    }
 
     ideTabInjected = true;
     console.log("[BetterGateway] IDE + CLI nav items injected");

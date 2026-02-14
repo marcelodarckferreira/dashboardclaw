@@ -360,14 +360,16 @@ describe("inject.js - WebSocket auto-reconnect", () => {
       // This functionality is tested manually in the browser
     });
 
-    it("should not inject duplicate IDE nav items", () => {
+    it("should not inject duplicate nav items on double eval", () => {
       createGatewaySidebar();
       
       window.eval(injectScript);
       window.eval(injectScript);
       
       const ideNavs = window.document.querySelectorAll("#better-gateway-ide-nav");
+      const cliNavs = window.document.querySelectorAll("#better-gateway-cli-nav");
       expect(ideNavs.length).toBe(1);
+      expect(cliNavs.length).toBe(1);
     });
 
     it("should log injection message to console", () => {
