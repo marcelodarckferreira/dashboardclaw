@@ -31,15 +31,19 @@ Terminal requires `node-pty` for PTY sessions. It's a native module that needs c
 
 ---
 
-### 🔴 Terminal shows "Disconnected" in browser
-**Status:** Investigating
+### 🟢 Terminal shows "Disconnected" in browser
+**Status:** Fixed
 
-After fixing the WS port and module issues, the terminal page loads but shows disconnected. Likely causes:
-1. SSH tunnel doesn't forward port 18790 (user needs `-L 18790:127.0.0.1:18790`)
-2. ws module still not resolving correctly at runtime (need to verify logs after latest fix)
-3. node-pty may still not be loading (native module compilation issue)
+Root cause was a **startup race condition**: `ensureAttached()` triggered the WS server lazily on the first HTTP request, but the terminal page loaded and tried to connect before the server was listening. Combined with zero diagnostic feedback, users just saw "Disconnected" with no explanation.
 
-**Next steps:** Check `journalctl -u openclaw-gateway | grep -i terminal` after restart to verify WS server started and node-pty loaded.
+**Fixes applied:**
+1. **Eager WS server startup** — `startWsServer()` is called immediately in `createTerminalManager()` instead of lazily. By the time a user loads the terminal page, the server is already listening.
+2. **Status endpoint** — `GET /better-gateway/terminal/status` returns JSON with `{ wsPort, wsReady, ptyAvailable }`. The frontend fetches this before opening the WebSocket.
+3. **Dynamic port** — WS port is passed from the server into the page HTML and confirmed via the status endpoint. No more hardcoded `18790` in the frontend.
+4. **Context-aware error messages** — Instead of generic "Disconnected", the terminal now shows:
+   - "node-pty not installed — run: npm install node-pty" if PTY is missing
+   - "WebSocket server not ready — check gateway logs" if WS server failed
+   - "Connection failed — if using SSH, forward port {port} too" after max retries
 
 ---
 

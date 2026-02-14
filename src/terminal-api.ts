@@ -277,6 +277,7 @@ export function createTerminalManager(
 
   const TERMINAL_WS_PORT = 18790;
   let wsServerStarted = false;
+  let wsReady = false;
 
   async function startWsServer(): Promise<void> {
     if (wsServerStarted) return;
@@ -287,6 +288,7 @@ export function createTerminalManager(
       wsmod = await loadWs(logger);
     } catch (err) {
       logger.error(`Terminal: cannot load ws — ${err}`);
+      wsServerStarted = false;
       return;
     }
 
@@ -308,32 +310,45 @@ export function createTerminalManager(
     );
 
     server.listen(TERMINAL_WS_PORT, "127.0.0.1", () => {
+      wsReady = true;
       logger.info(`Terminal: WebSocket server listening on ws://127.0.0.1:${TERMINAL_WS_PORT}`);
     });
 
     server.on("error", (err: Error) => {
       logger.error(`Terminal: WebSocket server error — ${err.message}`);
+      wsReady = false;
       wsServerStarted = false;
     });
   }
 
+  // Start WS server eagerly so it's ready before any browser connects.
+  // Previously this was lazy (triggered on first HTTP request), causing a
+  // race where the page loaded before the WS server was listening.
+  startWsServer();
+
   // ---- public API -------------------------------------------------------
 
   return {
-    /**
-     * Call from any HTTP handler to lazily start the terminal WebSocket
-     * server on its dedicated port.
-     */
-    ensureAttached(_req: IncomingMessage): void {
-      if (!wsServerStarted) startWsServer();
-    },
-
     /** The port the terminal WebSocket server listens on. */
     wsPort: TERMINAL_WS_PORT,
 
     /** Returns true if node-pty is installed and loaded. */
     isAvailable(): Promise<boolean> {
       return loadPty(logger);
+    },
+
+    /** Returns status information for the /terminal/status endpoint. */
+    async getStatus(): Promise<{
+      wsPort: number;
+      wsReady: boolean;
+      ptyAvailable: boolean;
+    }> {
+      const ptyAvailable = await loadPty(logger);
+      return {
+        wsPort: TERMINAL_WS_PORT,
+        wsReady,
+        ptyAvailable,
+      };
     },
   };
 }

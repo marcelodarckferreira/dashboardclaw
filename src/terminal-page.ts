@@ -7,18 +7,20 @@ export interface TerminalPageConfig {
   xtermVersion: string;
   fitAddonVersion: string;
   webLinksAddonVersion: string;
+  wsPort: number;
 }
 
 const DEFAULT_CONFIG: TerminalPageConfig = {
   xtermVersion: "5.3.0",
   fitAddonVersion: "0.8.0",
   webLinksAddonVersion: "0.9.0",
+  wsPort: 18790,
 };
 
 export function generateTerminalPage(
   config: Partial<TerminalPageConfig> = {},
 ): string {
-  const { xtermVersion, fitAddonVersion, webLinksAddonVersion } = {
+  const { xtermVersion, fitAddonVersion, webLinksAddonVersion, wsPort } = {
     ...DEFAULT_CONFIG,
     ...config,
   };
@@ -172,11 +174,9 @@ export function generateTerminalPage(
 
     // ---- WebSocket ----
     var protocol = location.protocol === 'https:' ? 'wss:' : 'ws:';
-    // Terminal WebSocket runs on a dedicated side port (gateway upgrade
-    // handler intercepts all WS on the main port).
-    var wsPort   = 18790;
-    var wsHost   = location.hostname + ':' + wsPort;
-    var wsUrl    = protocol + '//' + wsHost + '/terminal/ws';
+    // Default WS port embedded from server; status endpoint confirms it.
+    var wsPort   = ${wsPort};
+    var wsUrl    = null;
 
     var ws = null;
     var reconnTimer = null;
@@ -189,7 +189,41 @@ export function generateTerminalPage(
       connStatus.textContent = text;
     }
 
-    function connect() {
+    // Fetch server status to confirm WS readiness and get the actual port.
+    // Returns true if ready to connect, false otherwise (shows error in UI).
+    function checkStatus() {
+      return fetch('/better-gateway/terminal/status')
+        .then(function (r) { return r.json(); })
+        .then(function (status) {
+          if (!status.ptyAvailable) {
+            setStatus('disconnected',
+              'node-pty not installed \\u2014 run: npm install node-pty');
+            term.write(
+              '\\r\\n\\x1b[1;31m node-pty is not installed.\\x1b[0m\\r\\n' +
+              '\\x1b[90m Install it on the server: npm install node-pty\\x1b[0m\\r\\n');
+            return false;
+          }
+          if (!status.wsReady) {
+            setStatus('disconnected',
+              'WebSocket server not ready \\u2014 check gateway logs');
+            term.write(
+              '\\r\\n\\x1b[1;31m Terminal WebSocket server failed to start.\\x1b[0m\\r\\n' +
+              '\\x1b[90m Check: journalctl -u openclaw-gateway | grep -i terminal\\x1b[0m\\r\\n');
+            return false;
+          }
+          // Use the port reported by the server (overrides default)
+          wsPort = status.wsPort;
+          wsUrl = protocol + '//' + location.hostname + ':' + wsPort + '/terminal/ws';
+          return true;
+        })
+        .catch(function () {
+          // Status endpoint unreachable — fall back to direct connect
+          wsUrl = protocol + '//' + location.hostname + ':' + wsPort + '/terminal/ws';
+          return true;
+        });
+    }
+
+    function connectWs() {
       if (ws && (ws.readyState === WebSocket.OPEN || ws.readyState === WebSocket.CONNECTING)) return;
 
       setStatus('connecting',
@@ -215,7 +249,8 @@ export function generateTerminalPage(
           reconnAttempts++;
           reconnTimer = setTimeout(connect, RECONN_DELAY);
         } else {
-          setStatus('disconnected', 'Connection failed — click to retry');
+          setStatus('disconnected',
+            'Connection failed \\u2014 if using SSH, forward port ' + wsPort + ' too. Click to retry.');
           statusBar.style.cursor = 'pointer';
           statusBar.onclick = function () {
             statusBar.style.cursor = '';
@@ -227,6 +262,13 @@ export function generateTerminalPage(
       };
 
       ws.onerror = function () { /* onclose fires next */ };
+    }
+
+    // Main connect: check status first, then open WebSocket
+    function connect() {
+      checkStatus().then(function (ready) {
+        if (ready) connectWs();
+      });
     }
 
     connect();

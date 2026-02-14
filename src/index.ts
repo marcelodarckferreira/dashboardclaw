@@ -270,6 +270,7 @@ export default {
     });
 
     // Create terminal manager (PTY + WebSocket bridge)
+    // WS server starts eagerly — no lazy attach needed.
     const terminalManager = createTerminalManager(api.logger, workspaceDir);
 
     // Register the main HTTP handler for /better-gateway/* routes
@@ -281,9 +282,6 @@ export default {
         if (!pathname.startsWith("/better-gateway")) {
           return false;
         }
-
-        // Lazily attach the WebSocket upgrade handler for the terminal
-        terminalManager.ensureAttached(req);
 
         const hostHeader = req.headers.host || "localhost:18789";
         const gatewayHost = `http://${hostHeader}`;
@@ -309,9 +307,22 @@ export default {
           return true;
         }
 
+        // Serve terminal status (JSON health check for the frontend)
+        if (pathname === "/better-gateway/terminal/status") {
+          const status = await terminalManager.getStatus();
+          const body = JSON.stringify(status);
+          res.writeHead(200, {
+            "Content-Type": "application/json",
+            "Content-Length": Buffer.byteLength(body),
+            "Cache-Control": "no-store",
+          });
+          res.end(body);
+          return true;
+        }
+
         // Serve the terminal page
         if (pathname === "/better-gateway/terminal") {
-          const html = generateTerminalPage();
+          const html = generateTerminalPage({ wsPort: terminalManager.wsPort });
           res.writeHead(200, {
             "Content-Type": "text/html",
             "Content-Length": Buffer.byteLength(html),
