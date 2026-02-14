@@ -413,6 +413,9 @@ export default {
                 const headers: Record<string, string | number> = {
                   "Content-Type": contentType,
                   "Content-Length": Buffer.byteLength(body),
+                  "Cache-Control": "no-store, no-cache, must-revalidate, proxy-revalidate",
+                  "Pragma": "no-cache",
+                  "Expires": "0",
                 };
 
                 res.writeHead(proxyRes.statusCode || 200, headers);
