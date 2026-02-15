@@ -1005,9 +1005,14 @@
         .bg-chat-file-content { display: none; background: #0d1117; border: 1px solid #30363d; border-radius: 6px; padding: 12px; margin: 4px 0 8px; font-family: monospace; font-size: 12px; line-height: 1.5; white-space: pre-wrap; word-break: break-word; max-height: 400px; overflow-y: auto; color: #e6edf3; }
         .bg-chat-file-content.visible { display: block; }
         /* Compose + header compact layout tweaks */
-        .chat-compose__field.bg-chat-compose-flex { display: flex; align-items: flex-end; gap: 8px; }
-        .chat-compose__field.bg-chat-compose-flex textarea { flex: 1 1 auto; }
-        .bg-chat-send-btn { margin-left: 4px; }
+        .bg-chat-compose-has-send { position: relative; }
+        .bg-chat-compose-has-send textarea { padding-right: 40px; }
+        .bg-chat-send-btn {
+          position: absolute;
+          right: 8px;
+          bottom: 8px;
+          margin: 0;
+        }
         .bg-send-label { display: none; }
         #better-gateway-ide-frame, #better-gateway-cli-frame { min-height: 0; }
         .bg-new-session-icon { font-size: 14px; }
@@ -1125,27 +1130,49 @@
     try {
       if (typeof document === "undefined") return;
 
-      // Find focus-mode toggle in the header (by title/aria-label heuristic).
-      const focusButton = document.querySelector(
-        'header button[title*="Focus" i], header button[aria-label*="Focus" i], main.content header button[title*="Focus" i], main.content header button[aria-label*="Focus" i]'
-      );
-      if (!focusButton) return;
+      // Prefer the chat controls bar (session selector + refresh + thinking + focus).
+      const chatControls = document.querySelector('.chat-controls');
+      const focusButton = chatControls
+        ? chatControls.querySelector('button[title*="focus mode" i], button[aria-label*="focus mode" i]')
+        : null;
 
-      // Find an existing New Session button anywhere in the app.
-      const newSessionButton = Array.from(document.querySelectorAll("button, a"))
-        .find((el) => /new\s+session/i.test(el.textContent || ""));
+      if (!chatControls || !focusButton) return;
+
+      // Find an existing New Session button (it currently lives in the compose actions).
+      const newSessionButton = Array.from(
+        document.querySelectorAll('.chat-compose button, main.content button, button, a')
+      ).find((el) => /new\s+session/i.test((el.textContent || '').replace(/\s+/g, ' ').trim()));
       if (!newSessionButton) return;
 
-      // If we've already moved it into an icon-only header slot, bail.
-      if (newSessionButton.dataset.bgNewSession === "header") return;
+      // If we've already moved it into chat-controls, bail.
+      if (newSessionButton.dataset.bgNewSession === 'chat-controls') return;
 
-      const headerContainer = focusButton.parentElement || focusButton.closest("header") || focusButton.parentNode;
-      if (!headerContainer || !headerContainer.appendChild) return;
-
-      // Move New Session button next to the focus toggle.
+      // Move New Session button into chat-controls, immediately to the right of the focus toggle.
       try {
-        headerContainer.insertBefore(newSessionButton, focusButton.nextSibling);
+        chatControls.insertBefore(newSessionButton, focusButton.nextSibling);
       } catch (_e) {}
+
+      // Compact icon-only styling.
+      newSessionButton.dataset.bgNewSession = 'chat-controls';
+      newSessionButton.classList.add('btn', 'btn--sm', 'btn--icon');
+      newSessionButton.setAttribute('aria-label', 'New session');
+      if (!newSessionButton.title) newSessionButton.title = 'New session';
+
+      // Hide any text label but keep it for accessibility.
+      const labelText = (newSessionButton.textContent || '').replace(/\s+/g, ' ').trim() || 'New session';
+      newSessionButton.textContent = '';
+      const iconSpan = document.createElement('span');
+      iconSpan.className = 'bg-new-session-icon';
+      iconSpan.setAttribute('aria-hidden', 'true');
+      iconSpan.textContent = '+'; // simple document-with-plus vibe
+
+      const labelSpan = document.createElement('span');
+      labelSpan.className = 'bg-new-session-label';
+      labelSpan.textContent = labelText;
+      labelSpan.style.display = 'none';
+
+      newSessionButton.appendChild(iconSpan);
+      newSessionButton.appendChild(labelSpan);
 
       // Compact icon-only styling.
       newSessionButton.dataset.bgNewSession = "header";
@@ -1180,16 +1207,16 @@
     if (!main) return;
 
     // Locate the chat compose field container.
-    const field = main.querySelector(".chat-compose__field") || main.querySelector("form textarea")?.parentElement;
+    const field = main.querySelector(".chat-compose") || main.querySelector(".chat-compose__field") || main.querySelector("form textarea")?.parentElement;
     if (!field || field.dataset.bgComposeEnhanced === "true") return;
 
     const textarea = field.querySelector("textarea") || main.querySelector("main.content textarea");
     if (!textarea) return;
 
     // Find Send and Queue buttons near the composer.
-    const allButtons = Array.from(main.querySelectorAll("button"));
-    const sendButton = allButtons.find((btn) => /^(send)$/i.test((btn.textContent || "").trim()));
-    const queueButton = allButtons.find((btn) => /^(queue)$/i.test((btn.textContent || "").trim()));
+    const allButtons = Array.from(main.querySelectorAll(".chat-compose button, main.content footer button"));
+    const sendButton = allButtons.find((btn) => /send/i.test((btn.textContent || "").replace(/\s+/g, " ").trim()));
+    const queueButton = allButtons.find((btn) => /queue/i.test((btn.textContent || "").replace(/\s+/g, " ").trim()));
 
     // Hide Queue button from the primary UI if present.
     if (queueButton) {
@@ -1202,17 +1229,22 @@
     // Mark compose as enhanced so we don't run twice.
     field.dataset.bgComposeEnhanced = "true";
 
-    // Ensure layout is flex: [textarea][icon button].
-    if (!field.classList.contains("bg-chat-compose-flex")) {
-      field.classList.add("bg-chat-compose-flex");
-    }
+    // Move send button inside the label/field container so it can sit
+    // visually inside the textarea area instead of as a full-width bar.
+    const fieldLabel =
+      field.querySelector(".chat-compose__field") ||
+      field.querySelector("label.field") ||
+      field;
 
-    // Move send button inside the field, to the right of the textarea.
     try {
-      if (sendButton.parentElement !== field) {
-        field.appendChild(sendButton);
+      if (fieldLabel && sendButton.parentElement !== fieldLabel) {
+        fieldLabel.appendChild(sendButton);
       }
     } catch (_e) {}
+
+    if (fieldLabel && !fieldLabel.classList.contains("bg-chat-compose-has-send")) {
+      fieldLabel.classList.add("bg-chat-compose-has-send");
+    }
 
     // Transform Send↔Stop button into icon-only while preserving the original
     // gateway click handler and internal text label for state detection.
