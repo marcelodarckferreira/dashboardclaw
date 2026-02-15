@@ -1004,6 +1004,13 @@
         .bg-chat-file-chip .chip-truncated { opacity: 0.6; font-size: 11px; }
         .bg-chat-file-content { display: none; background: #0d1117; border: 1px solid #30363d; border-radius: 6px; padding: 12px; margin: 4px 0 8px; font-family: monospace; font-size: 12px; line-height: 1.5; white-space: pre-wrap; word-break: break-word; max-height: 400px; overflow-y: auto; color: #e6edf3; }
         .bg-chat-file-content.visible { display: block; }
+        /* Compose + header compact layout tweaks */
+        .chat-compose__field.bg-chat-compose-flex { display: flex; align-items: flex-end; gap: 8px; }
+        .chat-compose__field.bg-chat-compose-flex textarea { flex: 1 1 auto; }
+        .bg-chat-send-btn { margin-left: 4px; }
+        .bg-send-label { display: none; }
+        #better-gateway-ide-frame, #better-gateway-cli-frame { min-height: 0; }
+        .bg-new-session-icon { font-size: 14px; }
       `;
       document.head.appendChild(style);
     }
@@ -1114,8 +1121,142 @@
     }
   }
 
+  function enhanceHeaderLayout() {
+    try {
+      if (typeof document === "undefined") return;
+
+      // Find focus-mode toggle in the header (by title/aria-label heuristic).
+      const focusButton = document.querySelector(
+        'header button[title*="Focus" i], header button[aria-label*="Focus" i], main.content header button[title*="Focus" i], main.content header button[aria-label*="Focus" i]'
+      );
+      if (!focusButton) return;
+
+      // Find an existing New Session button anywhere in the app.
+      const newSessionButton = Array.from(document.querySelectorAll("button, a"))
+        .find((el) => /new\s+session/i.test(el.textContent || ""));
+      if (!newSessionButton) return;
+
+      // If we've already moved it into an icon-only header slot, bail.
+      if (newSessionButton.dataset.bgNewSession === "header") return;
+
+      const headerContainer = focusButton.parentElement || focusButton.closest("header") || focusButton.parentNode;
+      if (!headerContainer || !headerContainer.appendChild) return;
+
+      // Move New Session button next to the focus toggle.
+      try {
+        headerContainer.insertBefore(newSessionButton, focusButton.nextSibling);
+      } catch (_e) {}
+
+      // Compact icon-only styling.
+      newSessionButton.dataset.bgNewSession = "header";
+      newSessionButton.classList.add("btn", "btn--sm", "btn--icon");
+      newSessionButton.setAttribute("aria-label", "New session");
+      newSessionButton.title = newSessionButton.title || "New session";
+
+      // Hide any text label but keep it in the DOM for accessibility.
+      const labelText = (newSessionButton.textContent || "").trim() || "New";
+      newSessionButton.textContent = "";
+      const iconSpan = document.createElement("span");
+      iconSpan.className = "bg-new-session-icon";
+      iconSpan.setAttribute("aria-hidden", "true");
+      iconSpan.textContent = "+"; // simple document-with-plus vibe
+
+      const labelSpan = document.createElement("span");
+      labelSpan.className = "bg-new-session-label";
+      labelSpan.textContent = labelText;
+      labelSpan.style.display = "none";
+
+      newSessionButton.appendChild(iconSpan);
+      newSessionButton.appendChild(labelSpan);
+    } catch (_error) {
+      // Non-fatal; header tweaks are best-effort only.
+    }
+  }
+
+  function enhanceComposeLayout() {
+    if (typeof document === "undefined") return;
+
+    const main = document.querySelector("main.content");
+    if (!main) return;
+
+    // Locate the chat compose field container.
+    const field = main.querySelector(".chat-compose__field") || main.querySelector("form textarea")?.parentElement;
+    if (!field || field.dataset.bgComposeEnhanced === "true") return;
+
+    const textarea = field.querySelector("textarea") || main.querySelector("main.content textarea");
+    if (!textarea) return;
+
+    // Find Send and Queue buttons near the composer.
+    const allButtons = Array.from(main.querySelectorAll("button"));
+    const sendButton = allButtons.find((btn) => /^(send)$/i.test((btn.textContent || "").trim()));
+    const queueButton = allButtons.find((btn) => /^(queue)$/i.test((btn.textContent || "").trim()));
+
+    // Hide Queue button from the primary UI if present.
+    if (queueButton) {
+      queueButton.style.display = "none";
+      queueButton.dataset.bgQueueHidden = "true";
+    }
+
+    if (!sendButton) return;
+
+    // Mark compose as enhanced so we don't run twice.
+    field.dataset.bgComposeEnhanced = "true";
+
+    // Ensure layout is flex: [textarea][icon button].
+    if (!field.classList.contains("bg-chat-compose-flex")) {
+      field.classList.add("bg-chat-compose-flex");
+    }
+
+    // Move send button inside the field, to the right of the textarea.
+    try {
+      if (sendButton.parentElement !== field) {
+        field.appendChild(sendButton);
+      }
+    } catch (_e) {}
+
+    // Transform Send↔Stop button into icon-only while preserving the original
+    // gateway click handler and internal text label for state detection.
+    if (!sendButton.dataset.bgSendIconified) {
+      const originalLabel = (sendButton.textContent || "").trim() || "Send";
+      sendButton.dataset.bgSendIconified = "true";
+      sendButton.classList.add("btn", "btn--primary", "btn--icon", "bg-chat-send-btn");
+      sendButton.setAttribute("aria-label", "Send message");
+      sendButton.title = sendButton.title || "Send message";
+
+      sendButton.textContent = "";
+      const iconSpan = document.createElement("span");
+      iconSpan.className = "bg-send-icon";
+      iconSpan.setAttribute("aria-hidden", "true");
+      iconSpan.textContent = ""; // simple paper-plane style glyph
+
+      const labelSpan = document.createElement("span");
+      labelSpan.className = "bg-send-label";
+      labelSpan.textContent = originalLabel;
+
+      sendButton.appendChild(iconSpan);
+      sendButton.appendChild(labelSpan);
+
+      // Observe label text to switch between Send and Stop icons.
+      const observer = new MutationObserver(function () {
+        const label = (labelSpan.textContent || "").toLowerCase();
+        if (label.includes("stop")) {
+          iconSpan.textContent = ""; // stop square glyph
+          sendButton.setAttribute("aria-label", "Stop response");
+          sendButton.title = "Stop response";
+        } else {
+          iconSpan.textContent = ""; // paper-plane when idle
+          sendButton.setAttribute("aria-label", "Send message");
+          sendButton.title = "Send message";
+        }
+      });
+      observer.observe(labelSpan, { characterData: true, childList: true, subtree: true });
+    }
+  }
+
   function startChatComposerEnhancer() {
     fetchWorkspaceFiles();
+    enhanceHeaderLayout();
+    enhanceComposeLayout();
     attachChatComposerEnhancements();
 
     // Window-level capture handler fires before any framework handlers
@@ -1150,6 +1291,8 @@
     if (!document.body) return;
     const observer = new MutationObserver(function () {
       try {
+        enhanceHeaderLayout();
+        enhanceComposeLayout();
         attachChatComposerEnhancements();
         transformFileBlocksInChat();
       } catch (_error) {}
