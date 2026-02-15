@@ -1178,6 +1178,9 @@
     try {
       if (typeof document === "undefined") return;
 
+      // Bail early if we already injected the header proxy button.
+      if (document.getElementById("bg-header-new-session-btn")) return;
+
       // Prefer the chat controls bar (session selector + refresh + thinking + focus).
       const chatControls = document.querySelector('.chat-controls');
       const focusButton = chatControls
@@ -1186,43 +1189,46 @@
 
       if (!chatControls || !focusButton) return;
 
-      // Find an existing New Session button (currently lives in the compose/main area).
-      const newSessionButton = Array.from(
-        document.querySelectorAll('.chat-compose button, main.content button, button, a')
-      ).find(function (el) {
-        return /new\s+session/i.test((el.textContent || '').replace(/\s+/g, ' ').trim());
-      });
-      if (!newSessionButton) return;
+      // The gateway renders .chat-compose__actions with two buttons:
+      //   [0] abortButton: "New session" | "Stop"  (Lit manages the text)
+      //   [1] sendButton:  "Send" | "Queue" + <kbd>
+      // We do NOT move the original button — that breaks Lit's text-node binding.
+      // Instead we create a new proxy button in the header.
+      var actionsDiv = document.querySelector("main.content .chat-compose__actions");
+      if (!actionsDiv) return;
+      var abortButton = actionsDiv.querySelectorAll("button")[0];
+      if (!abortButton) return;
 
-      // Bail if already moved into the header.
-      if (newSessionButton.dataset.bgNewSession === 'header') return;
+      // Create a new proxy "New session" button for the header.
+      var headerBtn = document.createElement("button");
+      headerBtn.id = "bg-header-new-session-btn";
+      headerBtn.type = "button";
+      headerBtn.className = "btn btn--sm btn--icon";
+      headerBtn.setAttribute("aria-label", "New session");
+      headerBtn.title = "New session";
 
-      // Move New Session button into chat-controls, immediately to the right of the focus toggle.
-      try {
-        chatControls.insertBefore(newSessionButton, focusButton.nextSibling);
-      } catch (_e) {}
-
-      // Mark as enhanced so we don't run this twice.
-      newSessionButton.dataset.bgNewSession = 'header';
-      newSessionButton.classList.add('btn', 'btn--sm', 'btn--icon');
-      newSessionButton.setAttribute('aria-label', 'New session');
-      if (!newSessionButton.title) newSessionButton.title = 'New session';
-
-      // Replace text with icon + visually-hidden label.
-      var originalLabel = (newSessionButton.textContent || '').replace(/\s+/g, ' ').trim() || 'New session';
-      newSessionButton.textContent = '';
-
-      var nsIconSpan = document.createElement('span');
-      nsIconSpan.className = 'bg-new-session-icon';
-      nsIconSpan.setAttribute('aria-hidden', 'true');
+      var nsIconSpan = document.createElement("span");
+      nsIconSpan.className = "bg-new-session-icon";
+      nsIconSpan.setAttribute("aria-hidden", "true");
       nsIconSpan.innerHTML = NEW_SESSION_ICON_SVG;
 
-      var nsLabelSpan = document.createElement('span');
-      nsLabelSpan.className = 'bg-new-session-label';
-      nsLabelSpan.textContent = originalLabel;
+      var nsLabelSpan = document.createElement("span");
+      nsLabelSpan.className = "bg-new-session-label";
+      nsLabelSpan.textContent = "New session";
 
-      newSessionButton.appendChild(nsIconSpan);
-      newSessionButton.appendChild(nsLabelSpan);
+      headerBtn.appendChild(nsIconSpan);
+      headerBtn.appendChild(nsLabelSpan);
+
+      // Only fire when NOT streaming (abort button text is "New session", not "Stop").
+      headerBtn.addEventListener("click", function () {
+        var actions = document.querySelector("main.content .chat-compose__actions");
+        var abort = actions ? actions.querySelectorAll("button")[0] : null;
+        if (abort && !/stop/i.test((abort.textContent || "").trim())) {
+          abort.click();
+        }
+      });
+
+      chatControls.insertBefore(headerBtn, focusButton.nextSibling);
     } catch (_error) {
       // Non-fatal; header tweaks are best-effort only.
     }
@@ -1244,82 +1250,111 @@
     var textarea = field.querySelector("textarea") || main.querySelector("textarea");
     if (!textarea) return;
 
-    // Find Send and Queue buttons near the composer.
-    var allButtons = Array.from(main.querySelectorAll(".chat-compose button, footer button, form button"));
-    var sendButton = allButtons.find(function (btn) {
-      return /^send$/i.test((btn.textContent || "").replace(/\s+/g, " ").trim());
-    });
-    var queueButton = allButtons.find(function (btn) {
-      return /queue/i.test((btn.textContent || "").replace(/\s+/g, " ").trim());
-    });
+    // The gateway renders .chat-compose__actions with two Lit-managed buttons:
+    //   [0] abortButton: "New session" | "Stop"  — text changes when streaming starts/ends
+    //   [1] sendButton:  "Send" | "Queue" (+ <kbd>↵</kbd>) — Lit may also update text
+    // We must NOT move or clear these buttons — that severs Lit's DOM text-node bindings.
+    // Instead we hide the whole actions div and create our own proxy button inside the field.
+    var actionsDiv = field.querySelector(".chat-compose__actions");
+    if (!actionsDiv) return;
 
-    // Hide Queue button from the primary UI if present.
-    if (queueButton) {
-      queueButton.style.display = "none";
-      queueButton.dataset.bgQueueHidden = "true";
-    }
-
+    var buttons = actionsDiv.querySelectorAll("button");
+    var abortButton = buttons[0]; // "New session" | "Stop"
+    var sendButton  = buttons[1]; // "Send" | "Queue"
     if (!sendButton) return;
 
-    // Mark compose as enhanced so we don't run twice.
+    // Guard: if our proxy already lives in this field, just mark enhanced and bail.
+    if (field.querySelector("#bg-compose-send-stop-btn")) {
+      field.dataset.bgComposeEnhanced = "true";
+      return;
+    }
+
+    // Mark enhanced before any async work.
     field.dataset.bgComposeEnhanced = "true";
 
-    // Move send button inside the field container so it sits visually
-    // inside the textarea area instead of as a separate full-width bar.
+    // Hide the original actions bar entirely.
+    actionsDiv.style.display = "none";
+
+    // Find the field label (wraps the textarea) — proxy button goes here.
     var fieldLabel =
       field.querySelector(".chat-compose__field") ||
       field.querySelector("label.field") ||
       field;
 
-    try {
-      if (fieldLabel && sendButton.parentElement !== fieldLabel) {
-        fieldLabel.appendChild(sendButton);
-      }
-    } catch (_e) {}
-
     if (fieldLabel && !fieldLabel.classList.contains("bg-chat-compose-has-send")) {
       fieldLabel.classList.add("bg-chat-compose-has-send");
     }
 
-    // Transform Send/Stop button into icon-only, preserving the original
-    // gateway click handler. A hidden label span tracks state changes.
-    if (!sendButton.dataset.bgSendIconified) {
-      var sendOriginalLabel = (sendButton.textContent || "").trim() || "Send";
-      sendButton.dataset.bgSendIconified = "true";
-      sendButton.classList.add("btn", "btn--primary", "btn--icon", "bg-chat-send-btn");
-      sendButton.setAttribute("aria-label", "Send message");
-      if (!sendButton.title) sendButton.title = "Send message";
+    // --- Build the proxy Send / Stop button ---
+    var proxyBtn = document.createElement("button");
+    proxyBtn.type = "button";
+    proxyBtn.id = "bg-compose-send-stop-btn";
+    proxyBtn.className = "btn btn--primary btn--icon bg-chat-send-btn";
+    proxyBtn.setAttribute("aria-label", "Send message");
+    proxyBtn.title = "Send message";
 
-      sendButton.textContent = "";
+    var sendIconSpan = document.createElement("span");
+    sendIconSpan.className = "bg-send-icon";
+    sendIconSpan.setAttribute("aria-hidden", "true");
+    sendIconSpan.innerHTML = SEND_ICON_SVG;
 
-      var sendIconSpan = document.createElement("span");
-      sendIconSpan.className = "bg-send-icon";
-      sendIconSpan.setAttribute("aria-hidden", "true");
-      sendIconSpan.innerHTML = SEND_ICON_SVG;
+    var proxyLabelSpan = document.createElement("span");
+    proxyLabelSpan.className = "bg-send-label";
+    proxyLabelSpan.textContent = "Send message";
 
-      var sendLabelSpan = document.createElement("span");
-      sendLabelSpan.className = "bg-send-label";
-      sendLabelSpan.textContent = sendOriginalLabel;
+    proxyBtn.appendChild(sendIconSpan);
+    proxyBtn.appendChild(proxyLabelSpan);
 
-      sendButton.appendChild(sendIconSpan);
-      sendButton.appendChild(sendLabelSpan);
+    try {
+      if (fieldLabel) fieldLabel.appendChild(proxyBtn);
+    } catch (_e) {}
 
-      // Watch the hidden label for "Stop" text: the gateway sets button text
-      // to "Stop" when a response is streaming. Switch icon accordingly.
-      var sendObserver = new MutationObserver(function () {
-        var currentLabel = (sendLabelSpan.textContent || "").toLowerCase();
-        if (currentLabel.includes("stop")) {
-          sendIconSpan.innerHTML = STOP_ICON_SVG;
-          sendButton.setAttribute("aria-label", "Stop response");
-          sendButton.title = "Stop response";
-        } else {
-          sendIconSpan.innerHTML = SEND_ICON_SVG;
-          sendButton.setAttribute("aria-label", "Send message");
-          sendButton.title = "Send message";
-        }
-      });
-      sendObserver.observe(sendLabelSpan, { characterData: true, childList: true, subtree: true });
+    // --- State machine: idle (Send) ↔ streaming (Stop) ---
+    var isStreaming = false;
+
+    function updateProxyState() {
+      // Lit updates abortButton's text between "New session" and "Stop".
+      // We use that as the streaming signal.
+      var abortText = abortButton
+        ? (abortButton.textContent || "").replace(/\s+/g, " ").trim()
+        : "";
+      isStreaming = /^stop$/i.test(abortText);
+
+      if (isStreaming) {
+        sendIconSpan.innerHTML = STOP_ICON_SVG;
+        proxyBtn.setAttribute("aria-label", "Stop response");
+        proxyBtn.title = "Stop response";
+        proxyBtn.disabled = abortButton ? abortButton.disabled : false;
+      } else {
+        sendIconSpan.innerHTML = SEND_ICON_SVG;
+        proxyBtn.setAttribute("aria-label", "Send message");
+        proxyBtn.title = "Send message";
+        proxyBtn.disabled = sendButton.disabled;
+      }
     }
+
+    // Proxy click: delegate to the appropriate hidden gateway button.
+    proxyBtn.addEventListener("click", function () {
+      if (isStreaming) {
+        if (abortButton && !abortButton.disabled) abortButton.click();
+      } else {
+        if (sendButton && !sendButton.disabled) sendButton.click();
+      }
+    });
+
+    // Watch abortButton for "New session" ↔ "Stop" text changes (streaming signal).
+    if (abortButton) {
+      new MutationObserver(updateProxyState)
+        .observe(abortButton, { childList: true, characterData: true, subtree: true });
+    }
+
+    // Mirror the send button's disabled state onto the proxy (e.g. when disconnected).
+    new MutationObserver(function () {
+      if (!isStreaming) proxyBtn.disabled = sendButton.disabled;
+    }).observe(sendButton, { attributes: true, attributeFilter: ["disabled"] });
+
+    // Set initial state.
+    updateProxyState();
   }
 
 
