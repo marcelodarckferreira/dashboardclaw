@@ -319,7 +319,7 @@ export default {
             url.searchParams.delete("token");
             const cleanUrl = url.pathname + (url.searchParams.toString() ? `?${url.searchParams.toString()}` : "");
             res.writeHead(302, {
-              "Set-Cookie": `bg_auth=${gatewayToken}; Path=/better-gateway; HttpOnly; SameSite=Strict; Max-Age=86400`,
+              "Set-Cookie": `bg_auth=${gatewayToken}; Path=/better-gateway; HttpOnly; SameSite=Strict; Max-Age=31536000`,
               "Location": cleanUrl,
             });
             res.end();
