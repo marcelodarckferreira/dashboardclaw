@@ -294,15 +294,35 @@ export default {
         const url = new URL(req.url || "/", `http://${req.headers.host}`);
         const pathname = url.pathname;
 
-        // Auth check: accept token from Authorization header or ?token= query param
+        // Auth check: accept token from Authorization header, ?token= query param, or session cookie
         if (gatewayToken) {
           const tokenFromQuery = url.searchParams.get("token");
           const authHeader = req.headers["authorization"] || "";
           const bearerToken = authHeader.startsWith("Bearer ") ? authHeader.slice(7) : authHeader;
-          const providedToken = tokenFromQuery || bearerToken;
+          // Parse bg_auth session cookie
+          const cookieToken = (req.headers["cookie"] || "")
+            .split(";")
+            .map((c) => c.trim())
+            .find((c) => c.startsWith("bg_auth="))
+            ?.slice("bg_auth=".length) ?? null;
+
+          const providedToken = tokenFromQuery || bearerToken || cookieToken;
+
           if (providedToken !== gatewayToken) {
             res.writeHead(401, { "Content-Type": "application/json" });
             res.end(JSON.stringify({ error: { message: "Unauthorized", type: "unauthorized" } }));
+            return true;
+          }
+
+          // Token came via query param — set cookie and redirect to clean URL
+          if (tokenFromQuery === gatewayToken) {
+            url.searchParams.delete("token");
+            const cleanUrl = url.pathname + (url.searchParams.toString() ? `?${url.searchParams.toString()}` : "");
+            res.writeHead(302, {
+              "Set-Cookie": `bg_auth=${gatewayToken}; Path=/better-gateway; HttpOnly; SameSite=Strict; Max-Age=86400`,
+              "Location": cleanUrl,
+            });
+            res.end();
             return true;
           }
         }
