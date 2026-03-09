@@ -295,8 +295,10 @@ export default {
         const pathname = url.pathname;
 
         // Auth check: accept token from Authorization header, ?token= query param, or session cookie
+        // Note: Control UI generates plugin auth URLs as /better-gateway/token?=TOKEN (empty key)
+        // so we check both ?token=VALUE and ?=VALUE formats
         if (gatewayToken) {
-          const tokenFromQuery = url.searchParams.get("token");
+          const tokenFromQuery = url.searchParams.get("token") ?? url.searchParams.get("");
           const authHeader = req.headers["authorization"] || "";
           const bearerToken = authHeader.startsWith("Bearer ") ? authHeader.slice(7) : authHeader;
           // Parse bg_auth session cookie
@@ -423,7 +425,7 @@ export default {
           ...(req.headers as Record<string, string>),
           "Host": "127.0.0.1:18789",
         };
-        const tokenFromQuery = url.searchParams.get("token");
+        const tokenFromQuery = url.searchParams.get("token") ?? url.searchParams.get("");
         if (tokenFromQuery && !proxyHeaders["authorization"]) {
           proxyHeaders["authorization"] = `Bearer ${tokenFromQuery}`;
         }

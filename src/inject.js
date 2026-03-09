@@ -8,7 +8,7 @@
     maxReconnectAttempts: 10,
     autoReconnectOnGap: true,
     autoReconnectOnVisibility: true,
-    visibilityReconnectThresholdMs: 30000,
+    visibilityReconnectThresholdMs: 15000,
   };
 
   let reconnectAttempts = 0;
@@ -20,6 +20,7 @@
   let hiddenSince = null;
   let pendingForcedReconnect = false;
   let lastConnectionArgs = null;
+  let lastPageReloadAt = 0;
 
   function createStatusIndicator() {
     if (statusIndicator) return statusIndicator;
@@ -164,6 +165,31 @@
       <line x1="9" y1="15" x2="15" y2="15"></line>
     </svg>
   `;
+
+  function findChatNavItem() {
+    var candidates = document.querySelectorAll('.nav-item');
+    for (var i = 0; i < candidates.length; i++) {
+      var item = candidates[i];
+      var href = String(item.getAttribute('href') || '');
+      var text = String(item.textContent || '').trim().toLowerCase();
+      try {
+        if (href) {
+          var url = new URL(href, window.location.origin);
+          if (url.pathname === '/chat' || url.pathname === '/better-gateway/chat' || /\/chat$/.test(url.pathname)) {
+            return item;
+          }
+        }
+      } catch (_e) {
+        if (href === '/chat' || href === '/better-gateway/chat' || /\/chat(\?|$)/.test(href)) {
+          return item;
+        }
+      }
+      if (text === 'chat') {
+        return item;
+      }
+    }
+    return null;
+  }
 
   function createIdeNavItem() {
     const item = document.createElement("a");
@@ -418,8 +444,7 @@
       splitHandle = document.getElementById("better-gateway-split-handle");
     }
 
-    const chatNav = document.querySelector('.nav-item[href="/chat"]') 
-      || document.querySelector('.nav-item[href="/better-gateway/chat"]');
+    const chatNav = findChatNavItem();
     const ideNav = document.getElementById("better-gateway-ide-nav");
     const cliNav = document.getElementById("better-gateway-cli-nav");
     const chatToggleButton = document.getElementById("better-gateway-chat-toggle");
@@ -660,17 +685,15 @@
       return false;
     }
 
-    // Find the Chat section's nav-group__items container
-    // The gateway structure is: .nav-group > .nav-group__items > .nav-item[href="/chat"]
-    // Note: When accessed via /better-gateway/, links become /better-gateway/chat
-    const chatLink = document.querySelector('.nav-item[href="/chat"]') 
-      || document.querySelector('.nav-item[href="/better-gateway/chat"]');
+    // Find the Chat nav item and use its parent container as the insertion point.
+    // Be tolerant of Control UI route changes (query strings, base paths, etc).
+    const chatLink = findChatNavItem();
     if (!chatLink) {
       return false;
     }
 
     const navItems = chatLink.parentElement;
-    if (!navItems || !navItems.classList.contains("nav-group__items")) {
+    if (!navItems) {
       return false;
     }
 
@@ -1447,8 +1470,14 @@
       ws.addEventListener("message", function (event) {
         if (config.autoReconnectOnGap && typeof event.data === "string"
             && event.data.includes("event gap detected")) {
-          console.warn("[BetterGateway] Event gap detected, forcing reconnect");
-          closeAllAndReconnect();
+          var now = Date.now();
+          if (now - lastPageReloadAt < 10000) {
+            console.warn("[BetterGateway] Event gap detected but reload guard active, skipping");
+            return;
+          }
+          lastPageReloadAt = now;
+          console.warn("[BetterGateway] Event gap detected, reloading page as server recommends");
+          window.location.reload();
         }
       });
 
