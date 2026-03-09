@@ -7,6 +7,16 @@ import { generateIdePage } from "./ide-page.js";
 import { generateTerminalPage } from "./terminal-page.js";
 import { createTerminalManager } from "./terminal-api.js";
 
+function loadGatewayToken(): string | null {
+  try {
+    const configPath = join(process.env.HOME || "/root", ".openclaw", "openclaw.json");
+    const config = JSON.parse(readFileSync(configPath, "utf-8"));
+    return config?.gateway?.auth?.token ?? null;
+  } catch {
+    return null;
+  }
+}
+
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
 
@@ -18,12 +28,12 @@ interface PluginConfig {
 
 // Minimal type for the plugin API we actually use
 interface PluginApi {
-  registerHttpHandler: (
-    handler: (req: IncomingMessage, res: ServerResponse) => Promise<boolean> | boolean
-  ) => void;
   registerHttpRoute: (params: {
     path: string;
-    handler: (req: IncomingMessage, res: ServerResponse) => Promise<void> | void;
+    match?: "exact" | "prefix";
+    auth: "gateway" | "plugin";
+    handler: (req: IncomingMessage, res: ServerResponse) => Promise<boolean | void> | boolean | void;
+    replaceExisting?: boolean;
   }) => void;
   logger: {
     info: (msg: string) => void;
@@ -272,14 +282,51 @@ export default {
     // Create terminal manager (PTY + SSE/POST bridge)
     const terminalManager = createTerminalManager(api.logger, workspaceDir);
 
+    // Load gateway token once for auth validation
+    const gatewayToken = loadGatewayToken();
+
     // Register the main HTTP handler for /better-gateway/* routes
-    api.registerHttpHandler(
-      async (req: IncomingMessage, res: ServerResponse): Promise<boolean> => {
+    api.registerHttpRoute({
+      path: "/better-gateway",
+      match: "prefix",
+      auth: "plugin",
+      handler: async (req: IncomingMessage, res: ServerResponse): Promise<boolean | void> => {
         const url = new URL(req.url || "/", `http://${req.headers.host}`);
         const pathname = url.pathname;
 
-        if (!pathname.startsWith("/better-gateway")) {
-          return false;
+        // Auth check: accept token from Authorization header, ?token= query param, or session cookie
+        // Note: Control UI generates plugin auth URLs as /better-gateway/token?=TOKEN (empty key)
+        // so we check both ?token=VALUE and ?=VALUE formats
+        if (gatewayToken) {
+          const tokenFromQuery = url.searchParams.get("token") ?? url.searchParams.get("");
+          const authHeader = req.headers["authorization"] || "";
+          const bearerToken = authHeader.startsWith("Bearer ") ? authHeader.slice(7) : authHeader;
+          // Parse bg_auth session cookie
+          const cookieToken = (req.headers["cookie"] || "")
+            .split(";")
+            .map((c) => c.trim())
+            .find((c) => c.startsWith("bg_auth="))
+            ?.slice("bg_auth=".length) ?? null;
+
+          const providedToken = tokenFromQuery || bearerToken || cookieToken;
+
+          if (providedToken !== gatewayToken) {
+            res.writeHead(401, { "Content-Type": "application/json" });
+            res.end(JSON.stringify({ error: { message: "Unauthorized", type: "unauthorized" } }));
+            return true;
+          }
+
+          // Token came via query param — set cookie and redirect to clean URL
+          if (tokenFromQuery === gatewayToken) {
+            url.searchParams.delete("token");
+            const cleanUrl = url.pathname + (url.searchParams.toString() ? `?${url.searchParams.toString()}` : "");
+            res.writeHead(302, {
+              "Set-Cookie": `bg_auth=${gatewayToken}; Path=/better-gateway; HttpOnly; SameSite=Strict; Max-Age=31536000`,
+              "Location": cleanUrl,
+            });
+            res.end();
+            return true;
+          }
         }
 
         const hostHeader = req.headers.host || "localhost:18789";
@@ -372,9 +419,21 @@ export default {
         // Strip /better-gateway prefix and proxy the rest
         const internalPort = 18789;
         let targetPath = pathname.replace(/^\/better-gateway/, "") || "/";
-        if (url.search) {
-          targetPath += url.search;
+
+        // Extract ?token= query param and inject as Authorization header (strip from forwarded URL)
+        const proxyHeaders: Record<string, string> = {
+          ...(req.headers as Record<string, string>),
+          "Host": "127.0.0.1:18789",
+        };
+        const tokenFromQuery = url.searchParams.get("token") ?? url.searchParams.get("");
+        if (tokenFromQuery && !proxyHeaders["authorization"]) {
+          proxyHeaders["authorization"] = `Bearer ${tokenFromQuery}`;
         }
+        // Strip token from forwarded query string
+        const forwardParams = new URLSearchParams(url.searchParams);
+        forwardParams.delete("token");
+        const forwardSearch = forwardParams.toString();
+        targetPath += forwardSearch ? `?${forwardSearch}` : "";
 
         return new Promise((resolve) => {
           const proxyReq = httpRequest(
@@ -384,10 +443,7 @@ export default {
               path: targetPath,
               method: req.method || "GET",
               family: 4,
-              headers: {
-                ...req.headers,
-                "Host": "127.0.0.1:18789",
-              },
+              headers: proxyHeaders,
             },
             (proxyRes) => {
               const contentType = proxyRes.headers["content-type"] || "";
@@ -440,6 +496,6 @@ export default {
           proxyReq.end();
         });
       }
-    );
+    });
   },
 };
