@@ -15,9 +15,11 @@ Transformar o DashboardClaw de um monitor local single-gateway em uma **platafor
 | # | Sub-projeto | Depende de | Status |
 |---|---|---|---|
 | 1 | **Core** — bugs + Vite + SQLite + multi-gateway | — | Este spec |
-| 2 | **Canais** — CRUD Telegram, WhatsApp, webhooks | Core | Futuro |
-| 3 | **Chat** — interface de mensagens em tempo real | Core + Canais | Futuro |
+| 2 | **Canais** — configurar + entrar + operar Telegram, WhatsApp, webhooks | Core | Futuro |
+| 3 | **Chat** — interface de mensagens com agentes, troca de modelo/sessão | Core + Canais | Futuro |
 | 4 | **Sessões** — controle de sessões dos agentes | Core | Futuro |
+
+> **Canais (Sub-projeto 2)** vai além de CRUD de configuração: o usuário pode **entrar em qualquer canal cadastrado** e operá-lo diretamente no dashboard — ver histórico de mensagens do Telegram, responder, monitorar o fluxo em tempo real. Funciona como um terminal unificado por canal (ex: "Terminal Telegram", "Terminal WhatsApp").
 
 ---
 
@@ -82,7 +84,7 @@ DashboardClaw
 ## Schema SQLite
 
 Arquivo: `server/db.ts`  
-Biblioteca: `better-sqlite3`  
+Biblioteca: `better-sqlite3` *(ver nota abaixo sobre alternativas sem módulos nativos)*  
 Todas as tabelas criadas com `CREATE TABLE IF NOT EXISTS` na inicialização.
 
 ### Tabelas Core (implementadas)
@@ -309,16 +311,52 @@ Aparece quando nenhum gateway está ativo. Design glassmorphism consistente com 
 
 | Pacote | Tipo | Motivo |
 |--------|------|--------|
-| `better-sqlite3` | dependency | SQLite síncrono para Express |
+| `better-sqlite3` | dependency | SQLite síncrono para Express — requer compilação nativa |
 | `@types/better-sqlite3` | devDependency | Tipos TypeScript |
 | `vite` | devDependency | Bundler frontend |
+
+> **Nota SQLite:** `better-sqlite3` requer compilação nativa (como `node-pty`). Se o projeto voltar a rodar como plugin dentro do OpenClaw, substituir por `sql.js` (WebAssembly, zero dependências nativas). A decisão final fica para o momento da implementação.
+
+---
+
+## Integração com a API do OpenClaw
+
+Cada gateway cadastrado expõe a API REST na porta 18789 (padrão). O DashboardClaw consome esses endpoints usando o `token` armazenado na tabela `gateways`. Funciona identicamente para instalações **locais** (`localhost:18789`) e **remotas** (`192.168.x.x:18789`).
+
+### Mapa de endpoints por feature
+
+| Feature do Dashboard | Endpoint OpenClaw | Auth |
+|---|---|---|
+| Status do gateway (uptime, versão) | `GET /api/status` | ❌ público |
+| Listar sessões dos agentes | `GET /api/sessions` | ✅ Bearer |
+| Criar sessão | `POST /api/sessions` | ✅ Bearer |
+| Enviar mensagem ao agente | `POST /api/sessions/:key/messages` | ✅ Bearer |
+| Histórico de conversa | `GET /api/sessions/:key/history` | ✅ Bearer |
+| Gerenciar canais | `/api/channels/*` | ✅ Bearer |
+| Ler modelo ativo | `config.get` (RPC) | ✅ Bearer |
+| Trocar modelo ativo | `config.patch` (RPC) | ✅ Bearer |
+| Skills/modelos instalados | `GET /api/skills` | ✅ Bearer |
+| Webhooks registrados | `GET /api/hooks` | ✅ Bearer |
+| Tarefas agendadas | `GET /api/cron` | ✅ Bearer |
+
+### Como o `/poll` usa esses endpoints
+
+`POST /api/gateways/:id/poll` no DashboardClaw faz internamente:
+1. `GET <host>:<port>/api/status` → grava `service_status` com `service='gateway'`
+2. Demais verificações de serviços podem ser adicionadas nos sub-projetos
+
+### Sub-projeto 3 — Chat (funcionalidades confirmadas)
+
+Além da interface de mensagens, o Chat terá:
+- **Troca de modelo**: lê modelos disponíveis via `GET /api/skills`, aplica via `config.patch`
+- **Troca de sessão**: lista sessões via `GET /api/sessions`, troca a sessão ativa sem recarregar
 
 ---
 
 ## O que NÃO está no escopo do Core
 
-- Implementação real dos canais Telegram/WhatsApp/webhooks → Sub-projeto 2
-- Interface de chat → Sub-projeto 3  
+- Configuração + terminal operacional dos canais (Telegram, WhatsApp, webhooks) → Sub-projeto 2
+- Interface de chat com agentes, troca de modelo, troca de sessão → Sub-projeto 3
 - Controle de sessões de agentes → Sub-projeto 4
 - Autenticação do dashboard com senha → futuro
 - CORS restritivo em produção → futuro
