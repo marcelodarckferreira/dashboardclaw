@@ -164,9 +164,12 @@ function loadPty(logger: TerminalLogger): Promise<boolean> {
 
 interface TerminalSession {
   sid: string;
+  name: string;
+  command: string;
+  startedAt: number;
   pty: IPty;
-  res: ServerResponse; // the SSE response
-  keepaliveTimer: ReturnType<typeof setInterval>;
+  res: ServerResponse | null;
+  keepaliveTimer: ReturnType<typeof setInterval> | null;
   cleaned: boolean;
 }
 
@@ -207,15 +210,167 @@ export function createTerminalManager(
 
   const sessions = new Map<string, TerminalSession>();
 
-  // ---- SSE stream handler ------------------------------------------------
+  function cleanupSession(session: TerminalSession): void {
+    if (session.cleaned) return;
+    session.cleaned = true;
+    if (session.keepaliveTimer) clearInterval(session.keepaliveTimer);
+    try { session.res?.end(); } catch { /* already closed */ }
+    try { session.pty.kill(); } catch { /* already exited */ }
+    sessions.delete(session.sid);
+    logger.debug(`Terminal: session ${session.sid} cleaned up`);
+  }
 
-  async function handleStream(
-    _req: IncomingMessage,
+  // ---- POST spawn handler ------------------------------------------------
+
+  async function handleSpawn(
+    req: IncomingMessage,
     res: ServerResponse,
   ): Promise<void> {
     const available = await loadPty(logger);
     if (!available || !_pty) {
-      // Send an error event so the frontend gets a clear message, then close.
+      res.writeHead(503, { "Content-Type": "application/json" });
+      res.end(
+        JSON.stringify({
+          error: "node-pty is not installed. Run: npm install node-pty",
+        }),
+      );
+      return;
+    }
+
+    const body = await readBody(req);
+    let parsed: {
+      name?: string;
+      command?: string;
+      args?: string[];
+      cwd?: string;
+    } = {};
+    try {
+      parsed = JSON.parse(body || "{}");
+    } catch {
+      /* use defaults */
+    }
+
+    const shell =
+      parsed.command ||
+      process.env.SHELL ||
+      (process.platform === "win32" ? "powershell.exe" : "/bin/bash");
+    const args = parsed.command ? (parsed.args ?? []) : [];
+    const cwd = parsed.cwd || workspaceDir;
+    const name = parsed.name || shell;
+
+    let proc: IPty;
+    try {
+      proc = _pty.spawn(shell, args, {
+        name: "xterm-256color",
+        cols: 80,
+        rows: 24,
+        cwd,
+        env: process.env,
+      });
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      res.writeHead(500, { "Content-Type": "application/json" });
+      res.end(JSON.stringify({ error: `Failed to spawn terminal: ${msg}` }));
+      return;
+    }
+
+    const sid = generateSid();
+    const session: TerminalSession = {
+      sid,
+      name,
+      command: shell,
+      startedAt: Date.now(),
+      pty: proc,
+      res: null,
+      keepaliveTimer: null,
+      cleaned: false,
+    };
+    sessions.set(sid, session);
+
+    proc.onData((data) => {
+      try {
+        if (session.res && !session.res.destroyed) {
+          sseEvent(session.res, Buffer.from(data, "utf-8").toString("base64"));
+        }
+      } catch {
+        /* closed */
+      }
+    });
+
+    proc.onExit(({ exitCode }) => {
+      logger.debug(`Terminal: PTY pid=${proc.pid} exited code=${exitCode}`);
+      try {
+        if (session.res && !session.res.destroyed) {
+          sseEvent(session.res, JSON.stringify({ code: exitCode }), "exit");
+          session.res.end();
+        }
+      } catch {
+        /* already closed */
+      }
+      cleanupSession(session);
+    });
+
+    logger.debug(
+      `Terminal: PTY spawned sid=${sid} pid=${proc.pid} cmd=${shell} cwd=${cwd}`,
+    );
+    res.writeHead(200, { "Content-Type": "application/json" });
+    res.end(JSON.stringify({ sid, pid: proc.pid }));
+  }
+
+  // ---- SSE stream handler ------------------------------------------------
+
+  async function handleStream(
+    req: IncomingMessage,
+    res: ServerResponse,
+  ): Promise<void> {
+    // Parse sid from query string when using two-step spawn→stream flow
+    const reqUrl = new URL(req.url || "/", "http://localhost");
+    const existingSid = reqUrl.searchParams.get("sid");
+
+    if (existingSid) {
+      res.writeHead(200, {
+        "Content-Type": "text/event-stream",
+        "Cache-Control": "no-cache",
+        Connection: "keep-alive",
+        "X-Accel-Buffering": "no",
+      });
+
+      const session = sessions.get(existingSid);
+      if (!session) {
+        sseEvent(
+          res,
+          JSON.stringify({ error: `Session ${existingSid} not found` }),
+          "error",
+        );
+        res.end();
+        return;
+      }
+
+      session.res = res;
+      sseEvent(res, JSON.stringify({ sid: existingSid }), "session");
+
+      const keepaliveTimer = setInterval(() => {
+        try {
+          res.write(": keepalive\n\n");
+        } catch {
+          /* closed */
+        }
+      }, 15_000);
+      session.keepaliveTimer = keepaliveTimer;
+
+      res.on("close", () => {
+        clearInterval(keepaliveTimer);
+        session.res = null;
+        session.keepaliveTimer = null;
+        logger.debug(`Terminal: SSE disconnected for session ${existingSid}`);
+      });
+      return;
+    }
+
+    // ── Legacy: spawn + stream in one step (backward compat) ──────────────
+
+    const available = await loadPty(logger);
+    if (!available || !_pty) {
       res.writeHead(200, {
         "Content-Type": "text/event-stream",
         "Cache-Control": "no-cache",
@@ -262,32 +417,27 @@ export function createTerminalManager(
     }
 
     const sid = generateSid();
-    logger.debug(
-      `Terminal: PTY spawned sid=${sid} pid=${proc.pid} shell=${shell} cwd=${workspaceDir}`,
-    );
-
-    // SSE headers
     res.writeHead(200, {
       "Content-Type": "text/event-stream",
       "Cache-Control": "no-cache",
       Connection: "keep-alive",
-      "X-Accel-Buffering": "no", // disable nginx buffering
+      "X-Accel-Buffering": "no",
     });
-
-    // Send session ID as the first event
     sseEvent(res, JSON.stringify({ sid }), "session");
 
-    // Keepalive comment every 15s to prevent proxy/gateway timeouts
     const keepaliveTimer = setInterval(() => {
       try {
         res.write(": keepalive\n\n");
       } catch {
-        /* response already closed */
+        /* closed */
       }
     }, 15_000);
 
     const session: TerminalSession = {
       sid,
+      name: shell,
+      command: shell,
+      startedAt: Date.now(),
       pty: proc,
       res,
       keepaliveTimer,
@@ -295,53 +445,32 @@ export function createTerminalManager(
     };
     sessions.set(sid, session);
 
-    function cleanup() {
-      if (session.cleaned) return;
-      session.cleaned = true;
-      clearInterval(keepaliveTimer);
-      sessions.delete(sid);
-      try {
-        proc.kill();
-      } catch {
-        /* already exited */
-      }
-      logger.debug(`Terminal: session ${sid} cleaned up`);
-    }
-
-    // PTY → browser (base64-encoded to survive SSE newline framing)
     proc.onData((data) => {
       try {
         if (!res.destroyed) {
           sseEvent(res, Buffer.from(data, "utf-8").toString("base64"));
         }
       } catch {
-        /* response closed between check and write */
+        /* closed */
       }
     });
 
     proc.onExit(({ exitCode }) => {
-      logger.debug(
-        `Terminal: PTY pid=${proc.pid} exited code=${exitCode}`,
-      );
+      logger.debug(`Terminal: PTY pid=${proc.pid} exited code=${exitCode}`);
       try {
         if (!res.destroyed) {
-          sseEvent(
-            res,
-            JSON.stringify({ code: exitCode }),
-            "exit",
-          );
+          sseEvent(res, JSON.stringify({ code: exitCode }), "exit");
           res.end();
         }
       } catch {
         /* already closed */
       }
-      cleanup();
+      cleanupSession(session);
     });
 
-    // When the SSE connection drops, kill the PTY
     res.on("close", () => {
       logger.debug(`Terminal: SSE connection closed for session ${sid}`);
-      cleanup();
+      cleanupSession(session);
     });
   }
 
@@ -410,13 +539,44 @@ export function createTerminalManager(
     res.end(JSON.stringify({ ok: true }));
   }
 
+  // ---- GET sessions list handler -----------------------------------------
+
+  function handleSessions(
+    _req: IncomingMessage,
+    res: ServerResponse,
+  ): void {
+    const list = Array.from(sessions.values()).map((s) => ({
+      sid: s.sid,
+      name: s.name,
+      command: s.command,
+      pid: s.pty.pid,
+      startedAt: s.startedAt,
+      connected: s.res !== null,
+    }));
+    res.writeHead(200, { "Content-Type": "application/json" });
+    res.end(JSON.stringify(list));
+  }
+
+  // ---- DELETE session (kill) handler -------------------------------------
+
+  function handleKill(
+    _req: IncomingMessage,
+    res: ServerResponse,
+    sid: string,
+  ): void {
+    const session = sessions.get(sid);
+    if (session) cleanupSession(session);
+    res.writeHead(200, { "Content-Type": "application/json" });
+    res.end(JSON.stringify({ ok: true }));
+  }
+
   // ---- public API ---------------------------------------------------------
 
   return {
     /**
      * Route terminal sub-requests. Call with the sub-path after
-     * `/dashboardclaw/terminal` (e.g. "/stream", "/input", "/resize").
-     * Returns true if handled, false otherwise.
+     * `/dashboardclaw/terminal` (e.g. "/stream", "/spawn", "/sessions",
+     * "/input", "/resize"). Returns true if handled, false otherwise.
      */
     async handleRequest(
       req: IncomingMessage,
@@ -425,6 +585,19 @@ export function createTerminalManager(
     ): Promise<boolean> {
       if (subpath === "/stream" && req.method === "GET") {
         await handleStream(req, res);
+        return true;
+      }
+      if (subpath === "/spawn" && req.method === "POST") {
+        await handleSpawn(req, res);
+        return true;
+      }
+      if (subpath === "/sessions" && req.method === "GET") {
+        handleSessions(req, res);
+        return true;
+      }
+      if (subpath.startsWith("/sessions/") && req.method === "DELETE") {
+        const sid = subpath.slice("/sessions/".length);
+        handleKill(req, res, sid);
         return true;
       }
       if (subpath === "/input" && req.method === "POST") {
