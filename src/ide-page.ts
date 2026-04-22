@@ -65,7 +65,7 @@ export function generateIdePage(config: Partial<IdePageConfig> = {}): string {
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Better Gateway IDE</title>
+  <title>DashboardClaw IDE</title>
   <style>
     * {
       margin: 0;
@@ -637,7 +637,7 @@ export function generateIdePage(config: Partial<IdePageConfig> = {}): string {
   
   <div id="app">
     <div id="toolbar">
-      <span class="logo">⚡ Better Gateway IDE</span>
+      <span class="logo">⚡ DashboardClaw IDE</span>
       <span class="separator"></span>
       <button class="toolbar-btn" id="toggle-sidebar" title="Toggle Sidebar (Ctrl+B)">
         ☰ Files
@@ -677,7 +677,7 @@ export function generateIdePage(config: Partial<IdePageConfig> = {}): string {
         <div id="tab-bar"></div>
         <div id="editor-container">
           <div id="welcome">
-            <h2>Better Gateway IDE</h2>
+            <h2>DashboardClaw IDE</h2>
             <p>Open a file from the sidebar to start editing</p>
             <div class="shortcuts">
               <div class="shortcut"><kbd>⌘/Ctrl+S</kbd> <span>Save file</span></div>
@@ -702,7 +702,7 @@ export function generateIdePage(config: Partial<IdePageConfig> = {}): string {
 
   <script>
     // Configuration
-    const API_BASE = '/better-gateway/api/files';
+    const API_BASE = '/dashboardclaw/api/files';
     const EXTENSION_MAP = ${JSON.stringify(EXTENSION_TO_LANGUAGE)};
     
     // State

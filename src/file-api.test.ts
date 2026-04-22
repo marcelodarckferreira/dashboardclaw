@@ -86,10 +86,10 @@ describe("File API", () => {
 
   describe("GET /api/files (list directory)", () => {
     it("should list files in workspace root", async () => {
-      const req = createMockReq("GET", "/better-gateway/api/files", { path: "." });
+      const req = createMockReq("GET", "/dashboardclaw/api/files", { path: "." });
       const res = createMockRes();
       
-      const handled = await handler(req, res, "/better-gateway/api/files");
+      const handled = await handler(req, res, "/dashboardclaw/api/files");
       
       expect(handled).toBe(true);
       expect(res._statusCode).toBe(200);
@@ -105,10 +105,10 @@ describe("File API", () => {
     });
 
     it("should list files in subdirectory", async () => {
-      const req = createMockReq("GET", "/better-gateway/api/files", { path: "subdir" });
+      const req = createMockReq("GET", "/dashboardclaw/api/files", { path: "subdir" });
       const res = createMockRes();
       
-      await handler(req, res, "/better-gateway/api/files");
+      await handler(req, res, "/dashboardclaw/api/files");
       
       const body = JSON.parse(res._body);
       expect(body.files.length).toBe(1);
@@ -116,10 +116,10 @@ describe("File API", () => {
     });
 
     it("should handle path=/ as workspace root", async () => {
-      const req = createMockReq("GET", "/better-gateway/api/files", { path: "/" });
+      const req = createMockReq("GET", "/dashboardclaw/api/files", { path: "/" });
       const res = createMockRes();
       
-      await handler(req, res, "/better-gateway/api/files");
+      await handler(req, res, "/dashboardclaw/api/files");
       
       expect(res._statusCode).toBe(200);
       const body = JSON.parse(res._body);
@@ -127,10 +127,10 @@ describe("File API", () => {
     });
 
     it("should accept workspace/ prefixed paths", async () => {
-      const req = createMockReq("GET", "/better-gateway/api/files", { path: "workspace/subdir" });
+      const req = createMockReq("GET", "/dashboardclaw/api/files", { path: "workspace/subdir" });
       const res = createMockRes();
 
-      await handler(req, res, "/better-gateway/api/files");
+      await handler(req, res, "/dashboardclaw/api/files");
 
       expect(res._statusCode).toBe(200);
       const body = JSON.parse(res._body);
@@ -139,12 +139,12 @@ describe("File API", () => {
     });
 
     it("should accept absolute paths inside workspace", async () => {
-      const req = createMockReq("GET", "/better-gateway/api/files", {
+      const req = createMockReq("GET", "/dashboardclaw/api/files", {
         path: path.join(testWorkspace, "subdir"),
       });
       const res = createMockRes();
 
-      await handler(req, res, "/better-gateway/api/files");
+      await handler(req, res, "/dashboardclaw/api/files");
 
       expect(res._statusCode).toBe(200);
       const body = JSON.parse(res._body);
@@ -153,10 +153,10 @@ describe("File API", () => {
     });
 
     it("should reject path traversal attempts", async () => {
-      const req = createMockReq("GET", "/better-gateway/api/files", { path: "../../../etc" });
+      const req = createMockReq("GET", "/dashboardclaw/api/files", { path: "../../../etc" });
       const res = createMockRes();
       
-      await handler(req, res, "/better-gateway/api/files");
+      await handler(req, res, "/dashboardclaw/api/files");
       
       expect(res._statusCode).toBe(403);
       const body = JSON.parse(res._body);
@@ -164,10 +164,10 @@ describe("File API", () => {
     });
 
     it("should return 404 for non-existent directory", async () => {
-      const req = createMockReq("GET", "/better-gateway/api/files", { path: "nonexistent" });
+      const req = createMockReq("GET", "/dashboardclaw/api/files", { path: "nonexistent" });
       const res = createMockRes();
       
-      await handler(req, res, "/better-gateway/api/files");
+      await handler(req, res, "/dashboardclaw/api/files");
       
       expect(res._statusCode).toBe(404);
     });
@@ -175,10 +175,10 @@ describe("File API", () => {
 
   describe("GET /api/files/read", () => {
     it("should read file content", async () => {
-      const req = createMockReq("GET", "/better-gateway/api/files/read", { path: "test.txt" });
+      const req = createMockReq("GET", "/dashboardclaw/api/files/read", { path: "test.txt" });
       const res = createMockRes();
       
-      await handler(req, res, "/better-gateway/api/files/read");
+      await handler(req, res, "/dashboardclaw/api/files/read");
       
       expect(res._statusCode).toBe(200);
       const body = JSON.parse(res._body);
@@ -188,10 +188,10 @@ describe("File API", () => {
     });
 
     it("should read nested file", async () => {
-      const req = createMockReq("GET", "/better-gateway/api/files/read", { path: "subdir/nested.txt" });
+      const req = createMockReq("GET", "/dashboardclaw/api/files/read", { path: "subdir/nested.txt" });
       const res = createMockRes();
       
-      await handler(req, res, "/better-gateway/api/files/read");
+      await handler(req, res, "/dashboardclaw/api/files/read");
       
       expect(res._statusCode).toBe(200);
       const body = JSON.parse(res._body);
@@ -199,10 +199,10 @@ describe("File API", () => {
     });
 
     it("should read file with workspace/ prefix and normalize response path", async () => {
-      const req = createMockReq("GET", "/better-gateway/api/files/read", { path: "workspace/test.txt" });
+      const req = createMockReq("GET", "/dashboardclaw/api/files/read", { path: "workspace/test.txt" });
       const res = createMockRes();
 
-      await handler(req, res, "/better-gateway/api/files/read");
+      await handler(req, res, "/dashboardclaw/api/files/read");
 
       expect(res._statusCode).toBe(200);
       const body = JSON.parse(res._body);
@@ -211,28 +211,28 @@ describe("File API", () => {
     });
 
     it("should return 400 for missing path", async () => {
-      const req = createMockReq("GET", "/better-gateway/api/files/read", {});
+      const req = createMockReq("GET", "/dashboardclaw/api/files/read", {});
       const res = createMockRes();
       
-      await handler(req, res, "/better-gateway/api/files/read");
+      await handler(req, res, "/dashboardclaw/api/files/read");
       
       expect(res._statusCode).toBe(400);
     });
 
     it("should return 404 for non-existent file", async () => {
-      const req = createMockReq("GET", "/better-gateway/api/files/read", { path: "nonexistent.txt" });
+      const req = createMockReq("GET", "/dashboardclaw/api/files/read", { path: "nonexistent.txt" });
       const res = createMockRes();
       
-      await handler(req, res, "/better-gateway/api/files/read");
+      await handler(req, res, "/dashboardclaw/api/files/read");
       
       expect(res._statusCode).toBe(404);
     });
 
     it("should reject path traversal", async () => {
-      const req = createMockReq("GET", "/better-gateway/api/files/read", { path: "../../etc/passwd" });
+      const req = createMockReq("GET", "/dashboardclaw/api/files/read", { path: "../../etc/passwd" });
       const res = createMockRes();
       
-      await handler(req, res, "/better-gateway/api/files/read");
+      await handler(req, res, "/dashboardclaw/api/files/read");
       
       expect(res._statusCode).toBe(403);
     });
@@ -240,13 +240,13 @@ describe("File API", () => {
 
   describe("POST /api/files/write", () => {
     it("should write new file", async () => {
-      const req = createMockReq("POST", "/better-gateway/api/files/write", {}, {
+      const req = createMockReq("POST", "/dashboardclaw/api/files/write", {}, {
         path: "newfile.txt",
         content: "New content",
       });
       const res = createMockRes();
       
-      await handler(req, res, "/better-gateway/api/files/write");
+      await handler(req, res, "/dashboardclaw/api/files/write");
       
       expect(res._statusCode).toBe(200);
       
@@ -256,13 +256,13 @@ describe("File API", () => {
     });
 
     it("should overwrite existing file", async () => {
-      const req = createMockReq("POST", "/better-gateway/api/files/write", {}, {
+      const req = createMockReq("POST", "/dashboardclaw/api/files/write", {}, {
         path: "test.txt",
         content: "Updated content",
       });
       const res = createMockRes();
       
-      await handler(req, res, "/better-gateway/api/files/write");
+      await handler(req, res, "/dashboardclaw/api/files/write");
       
       expect(res._statusCode).toBe(200);
       
@@ -271,13 +271,13 @@ describe("File API", () => {
     });
 
     it("should create nested directories", async () => {
-      const req = createMockReq("POST", "/better-gateway/api/files/write", {}, {
+      const req = createMockReq("POST", "/dashboardclaw/api/files/write", {}, {
         path: "new/nested/dir/file.txt",
         content: "Deep nested",
       });
       const res = createMockRes();
       
-      await handler(req, res, "/better-gateway/api/files/write");
+      await handler(req, res, "/dashboardclaw/api/files/write");
       
       expect(res._statusCode).toBe(200);
       
@@ -286,24 +286,24 @@ describe("File API", () => {
     });
 
     it("should return 400 for missing path", async () => {
-      const req = createMockReq("POST", "/better-gateway/api/files/write", {}, {
+      const req = createMockReq("POST", "/dashboardclaw/api/files/write", {}, {
         content: "No path",
       });
       const res = createMockRes();
       
-      await handler(req, res, "/better-gateway/api/files/write");
+      await handler(req, res, "/dashboardclaw/api/files/write");
       
       expect(res._statusCode).toBe(400);
     });
 
     it("should reject path traversal", async () => {
-      const req = createMockReq("POST", "/better-gateway/api/files/write", {}, {
+      const req = createMockReq("POST", "/dashboardclaw/api/files/write", {}, {
         path: "../../../tmp/evil.txt",
         content: "Evil content",
       });
       const res = createMockRes();
       
-      await handler(req, res, "/better-gateway/api/files/write");
+      await handler(req, res, "/dashboardclaw/api/files/write");
       
       expect(res._statusCode).toBe(403);
     });
@@ -311,10 +311,10 @@ describe("File API", () => {
 
   describe("DELETE /api/files", () => {
     it("should delete file", async () => {
-      const req = createMockReq("DELETE", "/better-gateway/api/files", { path: "test.txt" });
+      const req = createMockReq("DELETE", "/dashboardclaw/api/files", { path: "test.txt" });
       const res = createMockRes();
       
-      await handler(req, res, "/better-gateway/api/files");
+      await handler(req, res, "/dashboardclaw/api/files");
       
       expect(res._statusCode).toBe(200);
       
@@ -323,28 +323,28 @@ describe("File API", () => {
     });
 
     it("should return 400 for missing path", async () => {
-      const req = createMockReq("DELETE", "/better-gateway/api/files", {});
+      const req = createMockReq("DELETE", "/dashboardclaw/api/files", {});
       const res = createMockRes();
       
-      await handler(req, res, "/better-gateway/api/files");
+      await handler(req, res, "/dashboardclaw/api/files");
       
       expect(res._statusCode).toBe(400);
     });
 
     it("should return 404 for non-existent file", async () => {
-      const req = createMockReq("DELETE", "/better-gateway/api/files", { path: "nonexistent.txt" });
+      const req = createMockReq("DELETE", "/dashboardclaw/api/files", { path: "nonexistent.txt" });
       const res = createMockRes();
       
-      await handler(req, res, "/better-gateway/api/files");
+      await handler(req, res, "/dashboardclaw/api/files");
       
       expect(res._statusCode).toBe(404);
     });
 
     it("should reject path traversal", async () => {
-      const req = createMockReq("DELETE", "/better-gateway/api/files", { path: "../../important.txt" });
+      const req = createMockReq("DELETE", "/dashboardclaw/api/files", { path: "../../important.txt" });
       const res = createMockRes();
       
-      await handler(req, res, "/better-gateway/api/files");
+      await handler(req, res, "/dashboardclaw/api/files");
       
       expect(res._statusCode).toBe(403);
     });
@@ -352,12 +352,12 @@ describe("File API", () => {
 
   describe("POST /api/files/mkdir", () => {
     it("should create directory", async () => {
-      const req = createMockReq("POST", "/better-gateway/api/files/mkdir", {}, {
+      const req = createMockReq("POST", "/dashboardclaw/api/files/mkdir", {}, {
         path: "newdir",
       });
       const res = createMockRes();
       
-      await handler(req, res, "/better-gateway/api/files/mkdir");
+      await handler(req, res, "/dashboardclaw/api/files/mkdir");
       
       expect(res._statusCode).toBe(200);
       
@@ -366,12 +366,12 @@ describe("File API", () => {
     });
 
     it("should create nested directories", async () => {
-      const req = createMockReq("POST", "/better-gateway/api/files/mkdir", {}, {
+      const req = createMockReq("POST", "/dashboardclaw/api/files/mkdir", {}, {
         path: "deep/nested/dir",
       });
       const res = createMockRes();
       
-      await handler(req, res, "/better-gateway/api/files/mkdir");
+      await handler(req, res, "/dashboardclaw/api/files/mkdir");
       
       expect(res._statusCode).toBe(200);
       
@@ -382,10 +382,10 @@ describe("File API", () => {
 
   describe("CORS headers", () => {
     it("should handle OPTIONS preflight", async () => {
-      const req = createMockReq("OPTIONS", "/better-gateway/api/files", {});
+      const req = createMockReq("OPTIONS", "/dashboardclaw/api/files", {});
       const res = createMockRes();
       
-      await handler(req, res, "/better-gateway/api/files");
+      await handler(req, res, "/dashboardclaw/api/files");
       
       expect(res._statusCode).toBe(204);
       // CORS headers set via setHeader, verified by preflight working
@@ -394,10 +394,10 @@ describe("File API", () => {
 
   describe("Unhandled routes", () => {
     it("should return false for non-file-api routes", async () => {
-      const req = createMockReq("GET", "/better-gateway/other", {});
+      const req = createMockReq("GET", "/dashboardclaw/other", {});
       const res = createMockRes();
       
-      const handled = await handler(req, res, "/better-gateway/other");
+      const handled = await handler(req, res, "/dashboardclaw/other");
       
       expect(handled).toBe(false);
     });

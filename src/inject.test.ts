@@ -104,20 +104,20 @@ describe("inject.js - WebSocket auto-reconnect", () => {
   describe("status indicator", () => {
     it("should create status indicator element on init", () => {
       window.eval(injectScript);
-      const indicator = window.document.getElementById("better-gateway-status");
+      const indicator = window.document.getElementById("dashboardclaw-status");
       expect(indicator).not.toBeNull();
     });
 
     it("should show Ready status on initialization", () => {
       window.eval(injectScript);
-      const indicator = window.document.getElementById("better-gateway-status");
+      const indicator = window.document.getElementById("dashboardclaw-status");
       expect(indicator?.innerHTML).toContain("Ready");
     });
 
     // FIXME: jsdom computed style issue - skipping flaky test
     it.skip("should have fixed positioning", () => {
       window.eval(injectScript);
-      const indicator = window.document.getElementById("better-gateway-status");
+      const indicator = window.document.getElementById("dashboardclaw-status");
       expect(indicator?.style.position).toBe("fixed");
       expect(indicator?.style.bottom).toBe("12px");
       expect(indicator?.style.right).toBe("12px");
@@ -125,7 +125,7 @@ describe("inject.js - WebSocket auto-reconnect", () => {
 
     it("should have correct z-index for visibility", () => {
       window.eval(injectScript);
-      const indicator = window.document.getElementById("better-gateway-status");
+      const indicator = window.document.getElementById("dashboardclaw-status");
       expect(indicator?.style.zIndex).toBe("999999");
     });
   });
@@ -172,7 +172,7 @@ describe("inject.js - WebSocket auto-reconnect", () => {
       const ws = new window.WebSocket("ws://localhost:8080");
       ws.triggerEvent("open");
 
-      const indicator = window.document.getElementById("better-gateway-status");
+      const indicator = window.document.getElementById("dashboardclaw-status");
       expect(indicator?.innerHTML).toContain("Connected");
     });
 
@@ -181,7 +181,7 @@ describe("inject.js - WebSocket auto-reconnect", () => {
       const ws = new window.WebSocket("ws://localhost:8080");
       ws.triggerEvent("error");
 
-      const indicator = window.document.getElementById("better-gateway-status");
+      const indicator = window.document.getElementById("dashboardclaw-status");
       expect(indicator?.innerHTML).toContain("Connection error");
     });
 
@@ -190,7 +190,7 @@ describe("inject.js - WebSocket auto-reconnect", () => {
       const ws = new window.WebSocket("ws://localhost:8080");
       ws.triggerEvent("close", { wasClean: true });
 
-      const indicator = window.document.getElementById("better-gateway-status");
+      const indicator = window.document.getElementById("dashboardclaw-status");
       expect(indicator?.innerHTML).toContain("Disconnected");
     });
   });
@@ -209,7 +209,7 @@ describe("inject.js - WebSocket auto-reconnect", () => {
       const ws = new window.WebSocket("ws://localhost:8080");
       ws.triggerEvent("close", { wasClean: false });
 
-      const indicator = window.document.getElementById("better-gateway-status");
+      const indicator = window.document.getElementById("dashboardclaw-status");
       expect(indicator?.innerHTML).toContain("Reconnecting");
       expect(indicator?.innerHTML).toContain("1/10");
     });
@@ -236,7 +236,7 @@ describe("inject.js - WebSocket auto-reconnect", () => {
       const ws3 = OriginalWebSocket.mock.instances[OriginalWebSocket.mock.instances.length - 1];
       ws3.triggerEvent("close", { wasClean: false });
 
-      const indicator = window.document.getElementById("better-gateway-status");
+      const indicator = window.document.getElementById("dashboardclaw-status");
       expect(indicator?.innerHTML).toContain("failed");
     });
 
@@ -255,7 +255,7 @@ describe("inject.js - WebSocket auto-reconnect", () => {
       // Successful connection
       ws2.triggerEvent("open");
 
-      const indicator = window.document.getElementById("better-gateway-status");
+      const indicator = window.document.getElementById("dashboardclaw-status");
       expect(indicator?.innerHTML).toContain("Connected");
 
       // Another disconnect - should start from 1 again
@@ -269,7 +269,7 @@ describe("inject.js - WebSocket auto-reconnect", () => {
       window.eval(injectScript);
       window.dispatchEvent(new window.Event("online"));
 
-      const indicator = window.document.getElementById("better-gateway-status");
+      const indicator = window.document.getElementById("dashboardclaw-status");
       expect(indicator?.innerHTML).toContain("Back online");
     });
 
@@ -277,7 +277,7 @@ describe("inject.js - WebSocket auto-reconnect", () => {
       window.eval(injectScript);
       window.dispatchEvent(new window.Event("offline"));
 
-      const indicator = window.document.getElementById("better-gateway-status");
+      const indicator = window.document.getElementById("dashboardclaw-status");
       expect(indicator?.innerHTML).toContain("Offline");
     });
   });
@@ -318,7 +318,7 @@ describe("inject.js - WebSocket auto-reconnect", () => {
 
     it("should not inject IDE nav when Chat link is missing", () => {
       window.eval(injectScript);
-      const ideNav = window.document.getElementById("better-gateway-ide-nav");
+      const ideNav = window.document.getElementById("dashboardclaw-ide-nav");
       expect(ideNav).toBeNull();
     });
 
@@ -326,7 +326,7 @@ describe("inject.js - WebSocket auto-reconnect", () => {
       createGatewaySidebar();
       window.eval(injectScript);
       
-      const ideNav = window.document.getElementById("better-gateway-ide-nav");
+      const ideNav = window.document.getElementById("dashboardclaw-ide-nav");
       expect(ideNav).not.toBeNull();
       expect(ideNav?.className).toBe("nav-item");
       expect(ideNav?.getAttribute("href")).toBe("#ide");
@@ -336,7 +336,7 @@ describe("inject.js - WebSocket auto-reconnect", () => {
       createGatewaySidebar();
       window.eval(injectScript);
       
-      const ideNav = window.document.getElementById("better-gateway-ide-nav");
+      const ideNav = window.document.getElementById("dashboardclaw-ide-nav");
       expect(ideNav).not.toBeNull();
       expect(ideNav?.innerHTML).toContain("nav-item__icon");
       expect(ideNav?.innerHTML).toContain("nav-item__text");
@@ -366,8 +366,8 @@ describe("inject.js - WebSocket auto-reconnect", () => {
       window.eval(injectScript);
       window.eval(injectScript);
       
-      const ideNavs = window.document.querySelectorAll("#better-gateway-ide-nav");
-      const cliNavs = window.document.querySelectorAll("#better-gateway-cli-nav");
+      const ideNavs = window.document.querySelectorAll("#dashboardclaw-ide-nav");
+      const cliNavs = window.document.querySelectorAll("#dashboardclaw-cli-nav");
       expect(ideNavs.length).toBe(1);
       expect(cliNavs.length).toBe(1);
     });
@@ -385,25 +385,25 @@ describe("inject.js - WebSocket auto-reconnect", () => {
       const { main } = createGatewaySidebar();
       window.eval(injectScript);
       
-      const ideNav = window.document.getElementById("better-gateway-ide-nav");
+      const ideNav = window.document.getElementById("dashboardclaw-ide-nav");
       ideNav?.click();
       
-      const ideFrame = window.document.getElementById("better-gateway-ide-frame");
+      const ideFrame = window.document.getElementById("dashboardclaw-ide-frame");
       expect(ideFrame).not.toBeNull();
       expect(ideFrame?.tagName).toBe("IFRAME");
-      expect(ideFrame?.getAttribute("src")).toContain("/better-gateway/ide");
+      expect(ideFrame?.getAttribute("src")).toContain("/dashboardclaw/ide");
     });
 
     it("should show split view (both main and iframe) when IDE nav is Shift+clicked", () => {
       const { main } = createGatewaySidebar();
       window.eval(injectScript);
       
-      const ideNav = window.document.getElementById("better-gateway-ide-nav");
+      const ideNav = window.document.getElementById("dashboardclaw-ide-nav");
       ideNav?.dispatchEvent(new window.MouseEvent("click", { bubbles: true, shiftKey: true }));
       
       // Split view: both main and iframe are visible
       expect(main.style.display).not.toBe("none");
-      const ideFrame = window.document.getElementById("better-gateway-ide-frame");
+      const ideFrame = window.document.getElementById("dashboardclaw-ide-frame");
       expect(ideFrame).not.toBeNull();
       expect(ideFrame?.style.display).toBe("block");
     });
@@ -412,7 +412,7 @@ describe("inject.js - WebSocket auto-reconnect", () => {
       const { main } = createGatewaySidebar();
       window.eval(injectScript);
       
-      const ideNav = window.document.getElementById("better-gateway-ide-nav");
+      const ideNav = window.document.getElementById("dashboardclaw-ide-nav");
       
       // Switch to split view via Shift+click
       ideNav?.dispatchEvent(new window.MouseEvent("click", { bubbles: true, shiftKey: true }));
@@ -421,7 +421,7 @@ describe("inject.js - WebSocket auto-reconnect", () => {
       // Switch back to Chat via Shift+click again
       ideNav?.dispatchEvent(new window.MouseEvent("click", { bubbles: true, shiftKey: true }));
       expect(main.style.display).toBe("");
-      const ideFrame = window.document.getElementById("better-gateway-ide-frame");
+      const ideFrame = window.document.getElementById("dashboardclaw-ide-frame");
       expect(ideFrame?.style.display).toBe("none");
     });
 
@@ -429,11 +429,11 @@ describe("inject.js - WebSocket auto-reconnect", () => {
       createGatewaySidebar();
       window.eval(injectScript);
 
-      const ideNav = window.document.getElementById("better-gateway-ide-nav");
+      const ideNav = window.document.getElementById("dashboardclaw-ide-nav");
       ideNav?.click();
 
-      const ideFrame = window.document.getElementById("better-gateway-ide-frame");
-      const splitHandle = window.document.getElementById("better-gateway-split-handle");
+      const ideFrame = window.document.getElementById("dashboardclaw-ide-frame");
+      const splitHandle = window.document.getElementById("dashboardclaw-split-handle");
 
       expect(ideFrame?.style.pointerEvents).toBe("");
 
@@ -450,7 +450,7 @@ describe("inject.js - WebSocket auto-reconnect", () => {
       const { chatLink } = createGatewaySidebar();
       window.eval(injectScript);
       
-      const ideNav = window.document.getElementById("better-gateway-ide-nav");
+      const ideNav = window.document.getElementById("dashboardclaw-ide-nav");
       
       // Initially Chat is active
       expect(chatLink.classList.contains("active")).toBe(true);
@@ -471,11 +471,11 @@ describe("inject.js - WebSocket auto-reconnect", () => {
       const { main } = createGatewaySidebar();
       window.eval(injectScript);
 
-      const ideNav = window.document.getElementById("better-gateway-ide-nav");
+      const ideNav = window.document.getElementById("dashboardclaw-ide-nav");
       // Enter split view via Shift+click
       ideNav?.dispatchEvent(new window.MouseEvent("click", { bubbles: true, shiftKey: true }));
 
-      const toggle = window.document.getElementById("better-gateway-chat-toggle") as HTMLButtonElement | null;
+      const toggle = window.document.getElementById("dashboardclaw-chat-toggle") as HTMLButtonElement | null;
       expect(toggle).not.toBeNull();
       expect(toggle?.style.display).toBe("block");
       expect(toggle?.textContent).toBe("→");
@@ -489,7 +489,7 @@ describe("inject.js - WebSocket auto-reconnect", () => {
       const { main } = createGatewaySidebar();
       window.eval(injectScript);
 
-      const ideNav = window.document.getElementById("better-gateway-ide-nav");
+      const ideNav = window.document.getElementById("dashboardclaw-ide-nav");
       // Regular click -> IDE-only (no chat)
       ideNav?.click();
       expect(main.style.display).toBe("none");
@@ -690,19 +690,19 @@ describe("inject.js - WebSocket auto-reconnect", () => {
       textarea.selectionStart = textarea.selectionEnd = textarea.value.length;
       textarea.dispatchEvent(new window.Event('input', { bubbles: true }));
 
-      const picker = window.document.querySelector('.better-gateway-chat-file-picker');
+      const picker = window.document.querySelector('.dashboardclaw-chat-file-picker');
       expect(picker).not.toBeNull();
       expect((picker as HTMLElement).style.display).not.toBe('none');
 
       textarea.dispatchEvent(new window.KeyboardEvent('keydown', { key: 'Enter', bubbles: true }));
       await Promise.resolve();
 
-      const chip = window.document.querySelector('.better-gateway-chat-file-chip');
+      const chip = window.document.querySelector('.dashboardclaw-chat-file-chip');
       expect(chip).not.toBeNull();
 
       textarea.value = '';
       textarea.dispatchEvent(new window.KeyboardEvent('keydown', { key: 'Backspace', bubbles: true }));
-      expect(window.document.querySelector('.better-gateway-chat-file-chip')).toBeNull();
+      expect(window.document.querySelector('.dashboardclaw-chat-file-chip')).toBeNull();
     });
 
     it("should attach referenced files into outbound chat.send payload", async () => {

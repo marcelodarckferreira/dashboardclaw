@@ -1,0 +1,236 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>OpenClaw Dashboard</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <!-- Ícones Phosphor Icons -->
+  <script src="https://unpkg.com/@phosphor-icons/web"></script>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  
+  <div class="layout">
+    <!-- Sidebar -->
+    <aside class="sidebar">
+      <div class="brand">
+        <i class="ph-fill ph-paw-print"></i>
+        <span>OpenClaw</span>
+      </div>
+      <nav class="nav-menu">
+        <a href="#" class="nav-item active" data-target="overview">
+          <i class="ph ph-squares-four"></i> Overview
+        </a>
+        <a href="#" class="nav-item" data-target="terminal">
+          <i class="ph ph-terminal-window"></i> Terminal
+        </a>
+        <a href="#" class="nav-item" data-target="channels">
+          <i class="ph ph-plugs"></i> Canais
+        </a>
+        <a href="#" class="nav-item" data-target="models">
+          <i class="ph ph-brain"></i> Modelos
+        </a>
+        <a href="#" class="nav-item" data-target="admin">
+          <i class="ph ph-gear"></i> Configurações
+        </a>
+      </nav>
+      
+      <div class="sidebar-footer">
+        <div class="user-info">
+          <div class="avatar">A</div>
+          <div class="details">
+            <span class="name">Athos (CoS)</span>
+            <span class="role">Admin</span>
+          </div>
+        </div>
+      </div>
+    </aside>
+
+    <!-- Main Content -->
+    <main class="main-content">
+      <!-- Header -->
+      <header class="topbar">
+        <div class="search-bar">
+          <i class="ph ph-magnifying-glass"></i>
+          <input type="text" placeholder="Buscar logs, agentes ou tarefas...">
+        </div>
+        
+        <div class="quick-actions">
+          <button class="btn btn-secondary"><i class="ph ph-arrows-clockwise"></i> Restart</button>
+          <button class="btn btn-secondary"><i class="ph ph-link"></i> Pairing</button>
+          <button class="btn btn-primary"><i class="ph ph-download-simple"></i> Export Logs</button>
+        </div>
+      </header>
+
+      <!-- View: Overview -->
+      <div class="view active" id="view-overview">
+        <div class="page-header">
+          <h1>Monitoramento Operacional</h1>
+          <p>Visão geral da saúde do gateway e integrações (Nível 1 Mock).</p>
+        </div>
+
+        <!-- KPI Cards -->
+        <div class="grid-cards">
+          <!-- Gateway -->
+          <div class="kpi-card">
+            <div class="kpi-header">
+              <div class="icon-wrapper bg-green">
+                <i class="ph ph-activity"></i>
+              </div>
+              <span class="badge status-ok">Online</span>
+            </div>
+            <div class="kpi-body">
+              <h3>Gateway</h3>
+              <div class="kpi-value">127.0.0.1:18789</div>
+              <p class="kpi-subtext">Uptime: 14h 22m • Ping: 12ms</p>
+            </div>
+          </div>
+
+          <!-- Telegram Ingest -->
+          <div class="kpi-card">
+            <div class="kpi-header">
+              <div class="icon-wrapper bg-blue">
+                <i class="ph ph-telegram-logo"></i>
+              </div>
+              <span class="badge status-ok">Sync</span>
+            </div>
+            <div class="kpi-body">
+              <h3>Telegram Ingest</h3>
+              <div class="kpi-value">14 Msgs/h</div>
+              <p class="kpi-subtext">Última msg: há 2 min</p>
+            </div>
+          </div>
+
+          <!-- STT Pipeline -->
+          <div class="kpi-card">
+            <div class="kpi-header">
+              <div class="icon-wrapper bg-purple">
+                <i class="ph ph-waveform"></i>
+              </div>
+              <span class="badge status-warn">Slow</span>
+            </div>
+            <div class="kpi-body">
+              <h3>STT Pipeline</h3>
+              <div class="kpi-value">2 Erros (hoje)</div>
+              <p class="kpi-subtext">Latência média: 2.4s</p>
+            </div>
+          </div>
+
+          <!-- Schema Validity -->
+          <div class="kpi-card">
+            <div class="kpi-header">
+              <div class="icon-wrapper bg-red">
+                <i class="ph ph-file-code"></i>
+              </div>
+              <span class="badge status-error">Critical</span>
+            </div>
+            <div class="kpi-body">
+              <h3>Schema Validity</h3>
+              <div class="kpi-value">Duplicated Key</div>
+              <p class="kpi-subtext">openclaw.json: L44</p>
+            </div>
+          </div>
+        </div>
+
+        <!-- Section: Events & Logs -->
+        <div class="grid-layout">
+          <!-- Recent Events Table -->
+          <div class="panel col-span-2">
+            <div class="panel-header">
+              <h2>Recent Events</h2>
+              <button class="btn-icon"><i class="ph ph-dots-three"></i></button>
+            </div>
+            <div class="panel-body">
+              <table class="data-table">
+                <thead>
+                  <tr>
+                    <th>Timestamp</th>
+                    <th>Source</th>
+                    <th>Event</th>
+                    <th>Status</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr>
+                    <td>11:42:01</td>
+                    <td>Telegram</td>
+                    <td>Received Voice Message (14s)</td>
+                    <td><span class="dot status-warn"></span> Processing</td>
+                  </tr>
+                  <tr>
+                    <td>11:40:15</td>
+                    <td>Ollama</td>
+                    <td>Generation completed (Llama3)</td>
+                    <td><span class="dot status-ok"></span> Success</td>
+                  </tr>
+                  <tr>
+                    <td>11:35:22</td>
+                    <td>System</td>
+                    <td>openclaw.json schema validation failed</td>
+                    <td><span class="dot status-error"></span> Failed</td>
+                  </tr>
+                  <tr>
+                    <td>11:00:00</td>
+                    <td>Heartbeat</td>
+                    <td>Cronjob: Daily cleanup executed</td>
+                    <td><span class="dot status-ok"></span> Success</td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+
+          <!-- System Logs / Tools -->
+          <div class="panel">
+            <div class="panel-header">
+              <h2>Active Tools</h2>
+            </div>
+            <div class="panel-body">
+              <ul class="tool-list">
+                <li>
+                  <i class="ph ph-folder"></i>
+                  <div class="tool-info">
+                    <strong>Local Workspace</strong>
+                    <span>/home/administrator/Athos</span>
+                  </div>
+                </li>
+                <li>
+                  <i class="ph ph-database"></i>
+                  <div class="tool-info">
+                    <strong>Vector DB</strong>
+                    <span>LanceDB Pro</span>
+                  </div>
+                </li>
+                <li>
+                  <i class="ph ph-microphone-stage"></i>
+                  <div class="tool-info">
+                    <strong>STT Engine</strong>
+                    <span>Whisper-Local</span>
+                  </div>
+                </li>
+              </ul>
+            </div>
+          </div>
+        </div>
+      </div>
+      
+      <!-- Outras views mockadas... -->
+      <div class="view" id="view-terminal">
+        <div class="page-header">
+          <h1>Terminal Integrado</h1>
+          <p>Conexão PTY nativa para o backend Node.</p>
+        </div>
+        <div class="panel" style="height: 60vh; display: flex; align-items: center; justify-content: center; background: #0f111a;">
+          <span style="color: #4a5568; font-family: monospace;">[Terminal PTY será injetado aqui via xterm.js na Fase 3]</span>
+        </div>
+      </div>
+
+    </main>
+  </div>
+
+  <script src="app.js"></script>
+</body>
+</html>

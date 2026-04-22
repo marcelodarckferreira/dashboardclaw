@@ -31,7 +31,7 @@ export function generateTerminalPage(
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Better Gateway Terminal</title>
+  <title>DashboardClaw Terminal</title>
   <link rel="stylesheet" href="${CDN}/xterm@${xtermVersion}/css/xterm.css">
   <style>
     * { margin: 0; padding: 0; box-sizing: border-box; }
@@ -177,9 +177,9 @@ export function generateTerminalPage(
     }
 
     // ---- SSE + POST transport ----
-    var STREAM_URL = '/better-gateway/terminal/stream';
-    var INPUT_URL  = '/better-gateway/terminal/input';
-    var RESIZE_URL = '/better-gateway/terminal/resize';
+    var STREAM_URL = '/dashboardclaw/terminal/stream';
+    var INPUT_URL  = '/dashboardclaw/terminal/input';
+    var RESIZE_URL = '/dashboardclaw/terminal/resize';
 
     var sid = null;          // session ID from server
     var evtSource = null;    // EventSource instance

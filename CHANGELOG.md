@@ -1,11 +1,11 @@
 # Changelog
 
-All notable changes to `@thisisjeron/better-gateway` will be documented in this file.
+All notable changes to `dashboardclaw` will be documented in this file.
 
 ## [1.1.0] - 2026-02-10
 
 ### ✨ Added
-- Embedded IDE workflow in Better Gateway (`/better-gateway/ide`) with Monaco-based editing.
+- Embedded IDE workflow in DashboardClaw (`/dashboardclaw/ide`) with Monaco-based editing.
 - Toolbar improvements including **Open Folder** and restored **Refresh** action for file tree sync.
 - Enhanced Gateway navigation integration for IDE/split-view usage.
 - Improved README docs highlighting IDE and reliability value props.

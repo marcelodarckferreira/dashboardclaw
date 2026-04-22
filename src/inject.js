@@ -26,7 +26,7 @@
     if (statusIndicator) return statusIndicator;
 
     statusIndicator = document.createElement("div");
-    statusIndicator.id = "better-gateway-status";
+    statusIndicator.id = "dashboardclaw-status";
     statusIndicator.style.cssText = `
       position: fixed;
       bottom: 12px;
@@ -113,7 +113,7 @@
   // View modes: 'chat' | 'ide' | 'split'
   let currentViewMode = 'chat';
   try {
-    const saved = localStorage.getItem('better-gateway-view-mode');
+    const saved = localStorage.getItem('dashboardclaw-view-mode');
     if (saved === 'ide' || saved === 'split') currentViewMode = saved;
   } catch (_e) { /* localStorage unavailable */ }
 
@@ -175,12 +175,12 @@
       try {
         if (href) {
           var url = new URL(href, window.location.origin);
-          if (url.pathname === '/chat' || url.pathname === '/better-gateway/chat' || /\/chat$/.test(url.pathname)) {
+          if (url.pathname === '/chat' || url.pathname === '/dashboardclaw/chat' || /\/chat$/.test(url.pathname)) {
             return item;
           }
         }
       } catch (_e) {
-        if (href === '/chat' || href === '/better-gateway/chat' || /\/chat(\?|$)/.test(href)) {
+        if (href === '/chat' || href === '/dashboardclaw/chat' || /\/chat(\?|$)/.test(href)) {
           return item;
         }
       }
@@ -193,7 +193,7 @@
 
   function createIdeNavItem() {
     const item = document.createElement("a");
-    item.id = "better-gateway-ide-nav";
+    item.id = "dashboardclaw-ide-nav";
     item.href = "#ide";
     item.className = "nav-item";
     item.title = "IDE - Code Editor (click for split view, Shift+click for IDE only)";
@@ -226,7 +226,7 @@
 
   function createCliNavItem() {
     const item = document.createElement("a");
-    item.id = "better-gateway-cli-nav";
+    item.id = "dashboardclaw-cli-nav";
     item.href = "#cli";
     item.className = "nav-item";
     item.title = "CLI - Terminal (click for split view, Shift+click for CLI only)";
@@ -259,8 +259,8 @@
 
   function createIdeFrame() {
     const frame = document.createElement("iframe");
-    frame.id = "better-gateway-ide-frame";
-    frame.src = `/better-gateway/ide?v=${encodeURIComponent(INJECT_VERSION)}`;
+    frame.id = "dashboardclaw-ide-frame";
+    frame.src = `/dashboardclaw/ide?v=${encodeURIComponent(INJECT_VERSION)}`;
     frame.style.cssText = `
       border: none;
       background: #1e1e1e;
@@ -271,8 +271,8 @@
 
   function createCliFrame() {
     const frame = document.createElement("iframe");
-    frame.id = "better-gateway-cli-frame";
-    frame.src = `/better-gateway/terminal?v=${encodeURIComponent(INJECT_VERSION)}`;
+    frame.id = "dashboardclaw-cli-frame";
+    frame.src = `/dashboardclaw/terminal?v=${encodeURIComponent(INJECT_VERSION)}`;
     frame.style.cssText = `
       border: none;
       background: #1e1e1e;
@@ -283,7 +283,7 @@
 
   function createSplitResizeHandle() {
     const handle = document.createElement("div");
-    handle.id = "better-gateway-split-handle";
+    handle.id = "dashboardclaw-split-handle";
     handle.style.cssText = `
       width: 4px;
       cursor: col-resize;
@@ -304,7 +304,7 @@
 
   function createChatToggleButton() {
     const button = document.createElement("button");
-    button.id = "better-gateway-chat-toggle";
+    button.id = "dashboardclaw-chat-toggle";
     button.type = "button";
     button.style.cssText = `
       position: absolute;
@@ -346,14 +346,14 @@
   }
 
   function getActiveFrame() {
-    var cliFrame = document.getElementById("better-gateway-cli-frame");
-    var ideFrame = document.getElementById("better-gateway-ide-frame");
+    var cliFrame = document.getElementById("dashboardclaw-cli-frame");
+    var ideFrame = document.getElementById("dashboardclaw-ide-frame");
     if (cliFrame && cliFrame.style.display !== "none") return cliFrame;
     return ideFrame;
   }
 
   function setupSplitResize() {
-    const handle = document.getElementById("better-gateway-split-handle");
+    const handle = document.getElementById("dashboardclaw-split-handle");
     if (!handle) return;
 
     let isDragging = false;
@@ -405,15 +405,15 @@
     if (!main) return;
 
     // Create or get the split container (flex wrapper for frames | handle | chat)
-    let splitWrapper = document.getElementById("better-gateway-split-wrapper");
-    let ideFrame = document.getElementById("better-gateway-ide-frame");
-    let cliFrame = document.getElementById("better-gateway-cli-frame");
-    let splitHandle = document.getElementById("better-gateway-split-handle");
+    let splitWrapper = document.getElementById("dashboardclaw-split-wrapper");
+    let ideFrame = document.getElementById("dashboardclaw-ide-frame");
+    let cliFrame = document.getElementById("dashboardclaw-cli-frame");
+    let splitHandle = document.getElementById("dashboardclaw-split-handle");
 
     if (!splitWrapper) {
       // Create wrapper: flex row container that replaces main in the layout
       splitWrapper = document.createElement("div");
-      splitWrapper.id = "better-gateway-split-wrapper";
+      splitWrapper.id = "dashboardclaw-split-wrapper";
       splitWrapper.style.cssText = `
         display: flex;
         flex-direction: row;
@@ -439,15 +439,15 @@
 
       setupSplitResize();
     } else {
-      ideFrame = document.getElementById("better-gateway-ide-frame");
-      cliFrame = document.getElementById("better-gateway-cli-frame");
-      splitHandle = document.getElementById("better-gateway-split-handle");
+      ideFrame = document.getElementById("dashboardclaw-ide-frame");
+      cliFrame = document.getElementById("dashboardclaw-cli-frame");
+      splitHandle = document.getElementById("dashboardclaw-split-handle");
     }
 
     const chatNav = findChatNavItem();
-    const ideNav = document.getElementById("better-gateway-ide-nav");
-    const cliNav = document.getElementById("better-gateway-cli-nav");
-    const chatToggleButton = document.getElementById("better-gateway-chat-toggle");
+    const ideNav = document.getElementById("dashboardclaw-ide-nav");
+    const cliNav = document.getElementById("dashboardclaw-cli-nav");
+    const chatToggleButton = document.getElementById("dashboardclaw-chat-toggle");
 
     // Helper: hide both content frames
     function hideFrames() {
@@ -670,16 +670,16 @@
 
     // Don't inject on standalone pages (IDE / Terminal)
     if (window.location && (
-      window.location.pathname === "/better-gateway/ide" ||
-      window.location.pathname === "/better-gateway/terminal"
+      window.location.pathname === "/dashboardclaw/ide" ||
+      window.location.pathname === "/dashboardclaw/terminal"
     )) {
       return false;
     }
 
     // Check if BOTH nav items already exist — only then skip entirely.
     // If only IDE exists (old inject.js ran first), we still need to add CLI.
-    var existingIdeNav = document.getElementById("better-gateway-ide-nav");
-    var existingCliNav = document.getElementById("better-gateway-cli-nav");
+    var existingIdeNav = document.getElementById("dashboardclaw-ide-nav");
+    var existingCliNav = document.getElementById("dashboardclaw-cli-nav");
     if (existingIdeNav && existingCliNav) {
       ideTabInjected = true;
       return false;
@@ -712,8 +712,8 @@
     allNavItems.forEach(function (navItem) {
       // Skip Chat, IDE, and CLI links (handled separately)
       if (navItem === chatLink
-        || navItem.id === "better-gateway-ide-nav"
-        || navItem.id === "better-gateway-cli-nav") {
+        || navItem.id === "dashboardclaw-ide-nav"
+        || navItem.id === "dashboardclaw-cli-nav") {
         return;
       }
       
@@ -808,7 +808,7 @@
   async function fetchWorkspaceFiles() {
     if (typeof fetch !== "function") return;
     try {
-      const response = await fetch("/better-gateway/api/files?path=%2F&recursive=true");
+      const response = await fetch("/dashboardclaw/api/files?path=%2F&recursive=true");
       if (!response.ok) return;
       const payload = await response.json();
       mentionState.files = Array.isArray(payload.files)
@@ -867,7 +867,7 @@
     mentionState.picker.innerHTML = mentionState.pickerItems
       .map((item, idx) => {
         const activeClass = idx === mentionState.activeIndex ? "active" : "";
-        return '<div class="better-gateway-chat-file-option ' + activeClass + '" data-path="' + escapeHtml(item.path) + '">'
+        return '<div class="dashboardclaw-chat-file-option ' + activeClass + '" data-path="' + escapeHtml(item.path) + '">'
           + '<span class="path">' + escapeHtml(item.path) + '</span>'
           + '<span class="name">' + escapeHtml(item.name) + '</span>'
           + '</div>';
@@ -875,7 +875,7 @@
       .join("");
     mentionState.picker.style.display = "block";
 
-    mentionState.picker.querySelectorAll(".better-gateway-chat-file-option").forEach(function (option) {
+    mentionState.picker.querySelectorAll(".dashboardclaw-chat-file-option").forEach(function (option) {
       option.addEventListener("mousedown", function (event) {
         event.preventDefault();
         selectMentionFile(option.dataset.path || "");
@@ -891,7 +891,7 @@
     mentionState.selected.forEach(function (entry) {
       const chip = document.createElement("button");
       chip.type = "button";
-      chip.className = "better-gateway-chat-file-chip";
+      chip.className = "dashboardclaw-chat-file-chip";
       chip.setAttribute("data-path", entry.path);
       chip.innerHTML = '<span class="chip-path">' + escapeHtml(entry.path) + '</span><span class="chip-remove" aria-hidden="true">×</span>';
       chip.addEventListener("click", function () {
@@ -918,7 +918,7 @@
   }
 
   async function readFileContext(path) {
-    const response = await fetch("/better-gateway/api/files/read?path=" + encodeURIComponent(path));
+    const response = await fetch("/dashboardclaw/api/files/read?path=" + encodeURIComponent(path));
     if (!response.ok) throw new Error("read failed");
     const payload = await response.json();
     const content = String(payload.content || "");
@@ -1018,36 +1018,36 @@
     mentionState.composer = textarea.parentElement || textarea.closest("form") || textarea.parentElement;
     if (!mentionState.composer) return;
 
-    let chips = mentionState.composer.querySelector(".better-gateway-chat-file-chips");
+    let chips = mentionState.composer.querySelector(".dashboardclaw-chat-file-chips");
     if (!chips) {
       chips = document.createElement("div");
-      chips.className = "better-gateway-chat-file-chips";
+      chips.className = "dashboardclaw-chat-file-chips";
       textarea.parentElement.insertBefore(chips, textarea);
     }
 
-    let picker = mentionState.composer.querySelector(".better-gateway-chat-file-picker");
+    let picker = mentionState.composer.querySelector(".dashboardclaw-chat-file-picker");
     if (!picker) {
       picker = document.createElement("div");
-      picker.className = "better-gateway-chat-file-picker";
+      picker.className = "dashboardclaw-chat-file-picker";
       textarea.parentElement.insertBefore(picker, textarea);
     }
 
     mentionState.chips = chips;
     mentionState.picker = picker;
 
-    if (!document.getElementById("better-gateway-chat-mention-style")) {
+    if (!document.getElementById("dashboardclaw-chat-mention-style")) {
       const style = document.createElement("style");
-      style.id = "better-gateway-chat-mention-style";
+      style.id = "dashboardclaw-chat-mention-style";
       style.textContent = `
-        .better-gateway-chat-file-chips { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 8px; }
-        .better-gateway-chat-file-chip { border: 1px solid #2a4a67; background: #1f3347; color: #dbeafe; border-radius: 999px; padding: 4px 8px; display: inline-flex; align-items: center; gap: 6px; cursor: pointer; }
-        .better-gateway-chat-file-chip .chip-path { max-width: 260px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-        .better-gateway-chat-file-chip .chip-remove { font-size: 12px; line-height: 1; }
-        .better-gateway-chat-file-picker { position: absolute; left: 0; right: 0; bottom: calc(100% + 6px); background: #1e1e1e; border: 1px solid #3c3c3c; border-radius: 8px; max-height: 220px; overflow: auto; display: none; z-index: 999; }
-        .better-gateway-chat-file-option { display: flex; justify-content: space-between; gap: 8px; padding: 8px 10px; cursor: pointer; }
-        .better-gateway-chat-file-option:hover, .better-gateway-chat-file-option.active { background: #2a2d2e; }
-        .better-gateway-chat-file-option .path { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-        .better-gateway-chat-file-option .name { color: #8b8b8b; font-size: 11px; }
+        .dashboardclaw-chat-file-chips { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 8px; }
+        .dashboardclaw-chat-file-chip { border: 1px solid #2a4a67; background: #1f3347; color: #dbeafe; border-radius: 999px; padding: 4px 8px; display: inline-flex; align-items: center; gap: 6px; cursor: pointer; }
+        .dashboardclaw-chat-file-chip .chip-path { max-width: 260px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+        .dashboardclaw-chat-file-chip .chip-remove { font-size: 12px; line-height: 1; }
+        .dashboardclaw-chat-file-picker { position: absolute; left: 0; right: 0; bottom: calc(100% + 6px); background: #1e1e1e; border: 1px solid #3c3c3c; border-radius: 8px; max-height: 220px; overflow: auto; display: none; z-index: 999; }
+        .dashboardclaw-chat-file-option { display: flex; justify-content: space-between; gap: 8px; padding: 8px 10px; cursor: pointer; }
+        .dashboardclaw-chat-file-option:hover, .dashboardclaw-chat-file-option.active { background: #2a2d2e; }
+        .dashboardclaw-chat-file-option .path { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+        .dashboardclaw-chat-file-option .name { color: #8b8b8b; font-size: 11px; }
         file[path] { display: none !important; }
         .bg-chat-file-wrapper { margin: 6px 0; }
         .bg-chat-file-chip { display: inline-flex; align-items: center; gap: 6px; border: 1px solid #2a4a67; background: #1f3347; color: #dbeafe; border-radius: 8px; padding: 6px 12px; cursor: pointer; font-size: 13px; user-select: none; }
@@ -1094,7 +1094,7 @@
           clip: rect(0, 0, 0, 0);
           white-space: nowrap;
         }
-        #better-gateway-ide-frame, #better-gateway-cli-frame { min-height: 0; }
+        #dashboardclaw-ide-frame, #dashboardclaw-cli-frame { min-height: 0; }
       `;
       document.head.appendChild(style);
     }
@@ -1141,7 +1141,7 @@
     // Case 1: <file> rendered as DOM elements (hidden by CSS, replaced with chip)
     var fileEls = chatArea.querySelectorAll("file[path]:not([data-bg-chip])");
     fileEls.forEach(function (fileEl) {
-      if (fileEl.closest("textarea, input, .better-gateway-chat-file-chips, .better-gateway-chat-file-picker")) return;
+      if (fileEl.closest("textarea, input, .dashboardclaw-chat-file-chips, .dashboardclaw-chat-file-picker")) return;
       fileEl.setAttribute("data-bg-chip", "true");
 
       var path = fileEl.getAttribute("path") || "";
@@ -1176,7 +1176,7 @@
     var escapedRe = /&lt;file path=&quot;([^&]*)&quot;(?:\s*truncated=&quot;(true)&quot;)?&gt;\n?([\s\S]*?)\n?&lt;\/file&gt;/g;
     for (var i = 0; i < candidates.length; i++) {
       var el = candidates[i];
-      if (el.closest(".bg-chat-file-wrapper, .better-gateway-chat-file-chips, .better-gateway-chat-file-picker, textarea, input")) continue;
+      if (el.closest(".bg-chat-file-wrapper, .dashboardclaw-chat-file-chips, .dashboardclaw-chat-file-picker, textarea, input")) continue;
       var html = el.innerHTML;
       if (!escapedRe.test(html)) continue;
       escapedRe.lastIndex = 0;

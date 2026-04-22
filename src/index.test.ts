@@ -19,14 +19,14 @@ vi.mock("node:fs/promises", () => ({
 // Import after mocking
 import plugin from "./index.js";
 
-describe("Better Gateway Plugin", () => {
+describe("DashboardClaw Plugin", () => {
   describe("plugin metadata", () => {
     it("should have correct id", () => {
-      expect(plugin.id).toBe("openclaw-better-gateway");
+      expect(plugin.id).toBe("dashboardclaw");
     });
 
     it("should have correct name", () => {
-      expect(plugin.name).toBe("Better Gateway");
+      expect(plugin.name).toBe("DashboardClaw");
     });
 
     it("should have configSchema", () => {
@@ -95,7 +95,7 @@ describe("Better Gateway Plugin", () => {
       plugin.register(mockApi);
       expect(mockApi.registerHttpRoute).toHaveBeenCalledTimes(1);
       expect(mockApi.registerHttpRoute.mock.calls[0][0]).toMatchObject({
-        path: "/better-gateway",
+        path: "/dashboardclaw",
         match: "prefix",
         auth: "plugin",
       });
@@ -180,14 +180,14 @@ describe("Better Gateway Plugin", () => {
     it("should return 401 for requests without a token when gateway token is set", async () => {
       // loadGatewayToken returns null in tests (readFileSync mock returns invalid JSON)
       // so auth is skipped — just verify handler is callable
-      const req = createMockReq("/better-gateway/help");
+      const req = createMockReq("/dashboardclaw/help");
       const result = await handler(req, mockRes as ServerResponse);
       expect(result).toBe(true);
     });
 
     describe("help page", () => {
-      it("should serve help page at /better-gateway/help", async () => {
-        const req = createMockReq("/better-gateway/help");
+      it("should serve help page at /dashboardclaw/help", async () => {
+        const req = createMockReq("/dashboardclaw/help");
         const result = await handler(req, mockRes as ServerResponse);
         expect(result).toBe(true);
         expect(mockRes.writeHead).toHaveBeenCalledWith(200, expect.objectContaining({
@@ -196,16 +196,16 @@ describe("Better Gateway Plugin", () => {
       });
 
       it("should include features in help page", async () => {
-        const req = createMockReq("/better-gateway/help");
+        const req = createMockReq("/dashboardclaw/help");
         await handler(req, mockRes as ServerResponse);
         const html = mockRes.end.mock.calls[0][0];
-        expect(html).toContain("Better Gateway");
+        expect(html).toContain("DashboardClaw");
         expect(html).toContain("Auto-reconnect");
         expect(html).toContain("WebSocket");
       });
 
       it("should include bookmarklet link", async () => {
-        const req = createMockReq("/better-gateway/help");
+        const req = createMockReq("/dashboardclaw/help");
         await handler(req, mockRes as ServerResponse);
         const html = mockRes.end.mock.calls[0][0];
         expect(html).toContain("javascript:");
@@ -213,7 +213,7 @@ describe("Better Gateway Plugin", () => {
       });
 
       it("should include userscript instructions", async () => {
-        const req = createMockReq("/better-gateway/help");
+        const req = createMockReq("/dashboardclaw/help");
         await handler(req, mockRes as ServerResponse);
         const html = mockRes.end.mock.calls[0][0];
         expect(html).toContain("Tampermonkey");
@@ -222,11 +222,11 @@ describe("Better Gateway Plugin", () => {
     })
 
     describe("enhanced gateway UI", () => {
-      it("should return true for /better-gateway paths (proxied)", async () => {
+      it("should return true for /dashboardclaw paths (proxied)", async () => {
         // For proxy tests we need to mock the http.request module
         // These tests verify the handler returns true for proxy paths
         // Full proxy behavior is tested in integration tests
-        const req = createMockReq("/better-gateway");
+        const req = createMockReq("/dashboardclaw");
 
         // Since http.request is not mocked, handler will make a real request
         // which will fail, but the handler should still return true
@@ -234,16 +234,16 @@ describe("Better Gateway Plugin", () => {
         expect(result).toBe(true);
       });
 
-      it("should return true for /better-gateway/ paths (proxied)", async () => {
-        const req = createMockReq("/better-gateway/");
+      it("should return true for /dashboardclaw/ paths (proxied)", async () => {
+        const req = createMockReq("/dashboardclaw/");
         const result = await handler(req, mockRes as ServerResponse);
         expect(result).toBe(true);
       });
     });
 
     describe("inject.js endpoint", () => {
-      it("should serve inject.js at /better-gateway/inject.js", async () => {
-        const req = createMockReq("/better-gateway/inject.js");
+      it("should serve inject.js at /dashboardclaw/inject.js", async () => {
+        const req = createMockReq("/dashboardclaw/inject.js");
         const result = await handler(req, mockRes as ServerResponse);
         expect(result).toBe(true);
         expect(mockRes.writeHead).toHaveBeenCalledWith(200, expect.objectContaining({
@@ -252,7 +252,7 @@ describe("Better Gateway Plugin", () => {
       });
 
       it("should include config in inject.js", async () => {
-        const req = createMockReq("/better-gateway/inject.js");
+        const req = createMockReq("/dashboardclaw/inject.js");
         await handler(req, mockRes as ServerResponse);
         const script = mockRes.end.mock.calls[0][0];
         expect(script).toContain("__BETTER_GATEWAY_CONFIG__");
@@ -261,7 +261,7 @@ describe("Better Gateway Plugin", () => {
       });
 
       it("should set no-cache header", async () => {
-        const req = createMockReq("/better-gateway/inject.js");
+        const req = createMockReq("/dashboardclaw/inject.js");
         await handler(req, mockRes as ServerResponse);
         expect(mockRes.writeHead).toHaveBeenCalledWith(200, expect.objectContaining({
           "Cache-Control": "no-cache",
@@ -269,15 +269,15 @@ describe("Better Gateway Plugin", () => {
       });
 
       it("should log debug message", async () => {
-        const req = createMockReq("/better-gateway/inject.js");
+        const req = createMockReq("/dashboardclaw/inject.js");
         await handler(req, mockRes as ServerResponse);
         expect(mockLogger.debug).toHaveBeenCalledWith("Served inject.js");
       });
     });
 
     describe("userscript endpoint", () => {
-      it("should serve userscript at /better-gateway/userscript.user.js", async () => {
-        const req = createMockReq("/better-gateway/userscript.user.js");
+      it("should serve userscript at /dashboardclaw/userscript.user.js", async () => {
+        const req = createMockReq("/dashboardclaw/userscript.user.js");
         const result = await handler(req, mockRes as ServerResponse);
         expect(result).toBe(true);
         expect(mockRes.writeHead).toHaveBeenCalledWith(200, expect.objectContaining({
@@ -286,15 +286,15 @@ describe("Better Gateway Plugin", () => {
       });
 
       it("should set content-disposition for download", async () => {
-        const req = createMockReq("/better-gateway/userscript.user.js");
+        const req = createMockReq("/dashboardclaw/userscript.user.js");
         await handler(req, mockRes as ServerResponse);
         expect(mockRes.writeHead).toHaveBeenCalledWith(200, expect.objectContaining({
-          "Content-Disposition": "attachment; filename=better-gateway.user.js",
+          "Content-Disposition": "attachment; filename=dashboardclaw.user.js",
         }));
       });
 
       it("should include userscript header", async () => {
-        const req = createMockReq("/better-gateway/userscript.user.js");
+        const req = createMockReq("/dashboardclaw/userscript.user.js");
         await handler(req, mockRes as ServerResponse);
         const script = mockRes.end.mock.calls[0][0];
         expect(script).toContain("// ==UserScript==");
@@ -304,10 +304,10 @@ describe("Better Gateway Plugin", () => {
     });
 
     describe("proxy handling", () => {
-      it("should proxy unknown /better-gateway/* paths to gateway", async () => {
+      it("should proxy unknown /dashboardclaw/* paths to gateway", async () => {
         // Unknown paths are proxied to the internal gateway
         // The handler returns true indicating it handled the request
-        const req = createMockReq("/better-gateway/unknown");
+        const req = createMockReq("/dashboardclaw/unknown");
         const result = await handler(req, mockRes as ServerResponse);
         expect(result).toBe(true);
         // Response is handled by proxy, not directly

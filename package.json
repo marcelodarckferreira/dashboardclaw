@@ -1,12 +1,12 @@
 {
-  "name": "@thisisjeron/openclaw-better-gateway",
-  "version": "1.2.5",
-  "description": "OpenClaw plugin that enhances the gateway UI with auto-reconnect and connection monitoring",
+  "name": "dashboardclaw",
+  "version": "1.0.0",
+  "description": "DashboardClaw for OpenClaw that enhances the gateway UI with auto-reconnect and connection monitoring",
   "type": "module",
   "main": "dist/index.js",
   "scripts": {
     "build": "tsc && cp src/inject.js dist/inject.js",
-    "deploy": "npm run build && cp -r dist/* ../../../extensions/openclaw-better-gateway/dist/ && cp src/inject.js ../../../extensions/openclaw-better-gateway/dist/inject.js && echo 'Deployed to extensions. Restart gateway to apply.'",
+    "deploy": "npm run build && cp -r dist/* ../../../extensions/dashboardclaw/dist/ && cp src/inject.js ../../../extensions/dashboardclaw/dist/inject.js && echo 'Deployed to extensions. Restart gateway to apply.'",
     "dev": "tsc --watch",
     "clean": "rm -rf dist",
     "test": "vitest run",
@@ -16,21 +16,21 @@
   },
   "keywords": [
     "openclaw",
-    "openclaw-plugin",
+    "dashboardclaw",
     "gateway",
     "websocket",
     "auto-reconnect"
   ],
-  "author": "ThisIsJeron",
+  "author": "Marcelo Darck",
   "license": "MIT",
   "repository": {
     "type": "git",
-    "url": "https://github.com/ThisIsJeron/openclaw-better-gateway.git"
+    "url": "https://github.com/marcelodarckferreira/dashboardclaw.git"
   },
   "bugs": {
-    "url": "https://github.com/ThisIsJeron/openclaw-better-gateway/issues"
+    "url": "https://github.com/marcelodarckferreira/dashboardclaw/issues"
   },
-  "homepage": "https://github.com/ThisIsJeron/openclaw-better-gateway#readme",
+  "homepage": "https://github.com/marcelodarckferreira/dashboardclaw#readme",
   "files": [
     "dist",
     "!dist/**/*.map",

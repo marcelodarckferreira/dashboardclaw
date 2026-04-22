@@ -1,10 +1,10 @@
-# OpenClaw Better Gateway
+# OpenClaw DashboardClaw
 
 An OpenClaw plugin that turns the Gateway into a **full-featured workspace** — resilient chat, embedded IDE, browser terminal, and file API, all in one tab.
 
 ## Why this plugin
 
-OpenClaw Gateway is great for chatting with models, but when sockets drop, you need to edit files, or you want a terminal — your flow breaks. **Better Gateway** keeps sessions alive and puts everything you need right inside the Gateway UI.
+OpenClaw Gateway is great for chatting with models, but when sockets drop, you need to edit files, or you want a terminal — your flow breaks. **DashboardClaw** keeps sessions alive and puts everything you need right inside the Gateway UI.
 
 ## Features
 
@@ -14,7 +14,7 @@ OpenClaw Gateway is great for chatting with models, but when sockets drop, you n
 - **Visual status indicator** — connected / reconnecting / disconnected state always visible
 - **Network awareness** — detects online/offline transitions and retries when connectivity returns
 - **Click-to-refresh fallback** — fast manual recovery when automatic retry is exhausted
-- **Enhanced Gateway route** — drop-in improved UI at `/better-gateway/` with all enhancements pre-injected
+- **Enhanced Gateway route** — drop-in improved UI at `/dashboardclaw/` with all enhancements pre-injected
 
 ### Embedded IDE (Monaco)
 
@@ -52,7 +52,7 @@ OpenClaw Gateway is great for chatting with models, but when sockets drop, you n
 ## Installation
 
 ```bash
-openclaw plugins install @thisisjeron/openclaw-better-gateway
+openclaw plugins install dashboardclaw
 ```
 
 Then restart your gateway.
@@ -60,8 +60,8 @@ Then restart your gateway.
 ### From source
 
 ```bash
-git clone https://github.com/ThisIsJeron/openclaw-better-gateway.git
-cd openclaw-better-gateway
+git clone https://github.com/marcelodarckferreira/dashboardclaw.git
+cd dashboardclaw
 npm install && npm run build
 openclaw plugins install -l .
 ```
@@ -73,26 +73,26 @@ openclaw plugins install -l .
 After installation and gateway restart:
 
 ```text
-https://<YOUR_GATEWAY>/better-gateway/
+https://<YOUR_GATEWAY>/dashboardclaw/
 ```
 
 ### Endpoints
 
 | Path | Method | Description |
 |------|--------|-------------|
-| `/better-gateway/` | GET | Enhanced gateway UI with auto-reconnect and nav items |
-| `/better-gateway/ide` | GET | Standalone IDE page (Monaco + file explorer) |
-| `/better-gateway/terminal` | GET | Standalone terminal page (xterm.js) |
-| `/better-gateway/terminal/stream` | GET | Terminal SSE stream (PTY output) |
-| `/better-gateway/terminal/input` | POST | Terminal input (keystrokes to PTY) |
-| `/better-gateway/terminal/resize` | POST | Terminal resize (cols/rows to PTY) |
-| `/better-gateway/api/files` | GET | List files in a directory |
-| `/better-gateway/api/files/read` | GET | Read a file |
-| `/better-gateway/api/files/write` | POST | Write a file |
-| `/better-gateway/api/files` | DELETE | Delete a file |
-| `/better-gateway/help` | GET | Help / installation page |
-| `/better-gateway/inject.js` | GET | Standalone injection script |
-| `/better-gateway/userscript.user.js` | GET | Tampermonkey userscript download |
+| `/dashboardclaw/` | GET | Enhanced gateway UI with auto-reconnect and nav items |
+| `/dashboardclaw/ide` | GET | Standalone IDE page (Monaco + file explorer) |
+| `/dashboardclaw/terminal` | GET | Standalone terminal page (xterm.js) |
+| `/dashboardclaw/terminal/stream` | GET | Terminal SSE stream (PTY output) |
+| `/dashboardclaw/terminal/input` | POST | Terminal input (keystrokes to PTY) |
+| `/dashboardclaw/terminal/resize` | POST | Terminal resize (cols/rows to PTY) |
+| `/dashboardclaw/api/files` | GET | List files in a directory |
+| `/dashboardclaw/api/files/read` | GET | Read a file |
+| `/dashboardclaw/api/files/write` | POST | Write a file |
+| `/dashboardclaw/api/files` | DELETE | Delete a file |
+| `/dashboardclaw/help` | GET | Help / installation page |
+| `/dashboardclaw/inject.js` | GET | Standalone injection script |
+| `/dashboardclaw/userscript.user.js` | GET | Tampermonkey userscript download |
 
 ## Configuration
 
@@ -102,7 +102,7 @@ In your OpenClaw config (`openclaw.json`):
 {
   "plugins": {
     "entries": {
-      "openclaw-better-gateway": {
+      "dashboardclaw": {
         "enabled": true,
         "reconnectIntervalMs": 3000,
         "maxReconnectAttempts": 10,
@@ -116,12 +116,12 @@ In your OpenClaw config (`openclaw.json`):
 ## How it works
 
 The plugin:
-1. Proxies the original gateway UI under `/better-gateway/` and injects reconnect/status behavior
+1. Proxies the original gateway UI under `/dashboardclaw/` and injects reconnect/status behavior
 2. Serves the IDE (Monaco) and terminal (xterm.js) as standalone pages, embedded via iframes in the nav
 3. Bridges the terminal to a server-side PTY using SSE (server-to-browser) and POST (browser-to-server) — all on the main gateway port
 4. Exposes a file API for workspace read/write/list/delete operations
 
-When a WebSocket connection drops, Better Gateway retries automatically. If recovery fails, the status indicator gives a quick click-to-refresh fallback.
+When a WebSocket connection drops, DashboardClaw retries automatically. If recovery fails, the status indicator gives a quick click-to-refresh fallback.
 
 ## Development
 
@@ -149,4 +149,4 @@ MIT
 
 ---
 
-Built with :paw_prints: by [ThisIsJeron](https://github.com/ThisIsJeron) and Clawd
+Built with :paw_prints: by [marcelodarckferreira](https://github.com/marcelodarckferreira) and Clawd

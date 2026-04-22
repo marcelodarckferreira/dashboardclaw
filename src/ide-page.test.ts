@@ -61,7 +61,7 @@ describe("IDE Page Generator", () => {
       expect(js).toContain("cdn.jsdelivr.net/npm/monaco-editor");
       expect(js).toContain("unpkg.com/monaco-editor");
       // local Monaco assets should NOT be referenced (removed to reduce package size)
-      expect(js).not.toContain("/better-gateway/monaco/");
+      expect(js).not.toContain("/dashboardclaw/monaco/");
     });
 
     it("should track which loader source succeeded and reuse it for editor modules", () => {
@@ -192,7 +192,7 @@ describe("IDE Page Generator", () => {
 
     it("should include the file API base URL", () => {
       const html = generateIdePage();
-      expect(html).toContain("/better-gateway/api/files");
+      expect(html).toContain("/dashboardclaw/api/files");
     });
   });
 

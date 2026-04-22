@@ -1,8 +1,8 @@
 {
-  "id": "openclaw-better-gateway",
-  "name": "Better Gateway",
-  "version": "1.2.5",
-  "description": "Enhanced gateway UI with auto-reconnect, WebSocket handling, and File API",
+  "id": "dashboardclaw",
+  "name": "DashboardClaw",
+  "version": "1.0.0",
+  "description": "Enhanced gateway UI with auto-reconnect, WebSocket handling, File API, file upload/download, and security",
   "main": "dist/index.js",
   "configSchema": {
     "type": "object",
@@ -36,6 +36,21 @@
         "type": "number",
         "default": 30000,
         "description": "How long the tab must be hidden (ms) before a visibility reconnect is triggered (default: 30s)"
+      },
+      "authToken": {
+        "type": "string",
+        "default": "",
+        "description": "Optional Bearer token to protect API/terminal endpoints. Leave empty to use gateway auth only."
+      },
+      "corsOrigin": {
+        "type": "string",
+        "default": "",
+        "description": "Allowed CORS origin (e.g. 'https://my-gateway.example.com'). Empty = same-origin only."
+      },
+      "maxUploadSize": {
+        "type": "number",
+        "default": 52428800,
+        "description": "Maximum upload file size in bytes (default: 50MB)"
       }
     },
     "required": []

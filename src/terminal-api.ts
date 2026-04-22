@@ -415,7 +415,7 @@ export function createTerminalManager(
   return {
     /**
      * Route terminal sub-requests. Call with the sub-path after
-     * `/better-gateway/terminal` (e.g. "/stream", "/input", "/resize").
+     * `/dashboardclaw/terminal` (e.g. "/stream", "/input", "/resize").
      * Returns true if handled, false otherwise.
      */
     async handleRequest(

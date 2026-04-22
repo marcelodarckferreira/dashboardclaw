@@ -24,6 +24,9 @@ interface PluginConfig {
   reconnectIntervalMs: number;
   maxReconnectAttempts: number;
   maxFileSize: number;
+  corsOrigin: string;
+  maxUploadSize: number;
+  authToken: string;
 }
 
 // Minimal type for the plugin API we actually use
@@ -49,6 +52,9 @@ const DEFAULT_CONFIG: PluginConfig = {
   reconnectIntervalMs: 3000,
   maxReconnectAttempts: 10,
   maxFileSize: DEFAULT_MAX_FILE_SIZE,
+  corsOrigin: "",
+  maxUploadSize: 50 * 1024 * 1024, // 50MB
+  authToken: "",
 };
 
 function loadInjectScript(): string {
@@ -72,7 +78,7 @@ function generateLandingPage(config: PluginConfig, gatewayHost: string): string 
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Better Gateway</title>
+  <title>DashboardClaw</title>
   <style>
     body {
       font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
@@ -120,7 +126,7 @@ function generateLandingPage(config: PluginConfig, gatewayHost: string): string 
   </style>
 </head>
 <body>
-  <h1>🔌 Better Gateway</h1>
+  <h1>🔌 DashboardClaw</h1>
   <p>Auto-reconnect enhancement for OpenClaw Gateway UI</p>
   
   <h2>Features</h2>
@@ -135,25 +141,25 @@ function generateLandingPage(config: PluginConfig, gatewayHost: string): string 
 
   <h2>Option 1: Bookmarklet</h2>
   <p>Drag this to your bookmarks bar, then click it when on the Gateway UI:</p>
-  <p><a class="bookmarklet" href="${bookmarklet}">⚡ Better Gateway</a></p>
+  <p><a class="bookmarklet" href="${bookmarklet}">⚡ DashboardClaw</a></p>
   
   <h2>Option 2: Console Injection</h2>
   <p>Open DevTools (F12) on the Gateway UI and paste:</p>
-  <pre>fetch('/better-gateway/inject.js').then(r=>r.text()).then(eval)</pre>
+  <pre>fetch('/dashboardclaw/inject.js').then(r=>r.text()).then(eval)</pre>
   
   <h2>Option 3: Userscript (Tampermonkey)</h2>
   <p>Create a new userscript with:</p>
   <pre>// ==UserScript==
-// @name         Better Gateway
+// @name         DashboardClaw
 // @match        ${gatewayHost}/*
 // @grant        none
 // ==/UserScript==
 
-fetch('/better-gateway/inject.js').then(r=>r.text()).then(eval);</pre>
+fetch('/dashboardclaw/inject.js').then(r=>r.text()).then(eval);</pre>
 
   <h2>IDE <span class="new">NEW</span></h2>
   <p>Full-featured code editor with Monaco:</p>
-  <p><a class="bookmarklet" href="/better-gateway/ide">🚀 Open IDE</a></p>
+  <p><a class="bookmarklet" href="/dashboardclaw/ide">🚀 Open IDE</a></p>
   <ul style="margin: 16px 0; padding-left: 24px; color: #aaa;">
     <li>File explorer with tree navigation</li>
     <li>Syntax highlighting for 30+ languages</li>
@@ -163,7 +169,7 @@ fetch('/better-gateway/inject.js').then(r=>r.text()).then(eval);</pre>
 
   <h2>Terminal <span class="new">NEW</span></h2>
   <p>Full interactive terminal in the browser:</p>
-  <p><a class="bookmarklet" href="/better-gateway/terminal">🖥 Open Terminal</a></p>
+  <p><a class="bookmarklet" href="/dashboardclaw/terminal">🖥 Open Terminal</a></p>
   <ul style="margin: 16px 0; padding-left: 24px; color: #aaa;">
     <li>Real PTY backend via node-pty</li>
     <li>xterm.js with 256-color support</li>
@@ -174,24 +180,24 @@ fetch('/better-gateway/inject.js').then(r=>r.text()).then(eval);</pre>
   <h2>File API <span class="new">NEW</span></h2>
   <p>Access workspace files programmatically:</p>
   <pre>// List files
-GET /better-gateway/api/files?path=/
+GET /dashboardclaw/api/files?path=/
 
 // Read file
-GET /better-gateway/api/files/read?path=/AGENTS.md
+GET /dashboardclaw/api/files/read?path=/AGENTS.md
 
 // Write file
-POST /better-gateway/api/files/write
+POST /dashboardclaw/api/files/write
 {"path": "/test.md", "content": "Hello!"}
 
 // Delete file
-DELETE /better-gateway/api/files?path=/test.md</pre>
+DELETE /dashboardclaw/api/files?path=/test.md</pre>
 
   <h2>Script URL</h2>
-  <p><code>/better-gateway/inject.js</code></p>
+  <p><code>/dashboardclaw/inject.js</code></p>
   
   <hr style="margin: 40px 0; border-color: #333;">
   <p style="color: #666; font-size: 0.85em;">
-    <a href="https://github.com/ThisIsJeron/openclaw-better-gateway" style="color: #00d4ff;">GitHub</a> · 
+    <a href="https://github.com/marcelodarckferreira/dashboardclaw" style="color: #00d4ff;">GitHub</a> · 
     Config: reconnect=${config.reconnectIntervalMs}ms, maxAttempts=${config.maxReconnectAttempts}
   </p>
 </body>
@@ -201,8 +207,8 @@ DELETE /better-gateway/api/files?path=/test.md</pre>
 function generateUserscript(config: PluginConfig, gatewayUrl: string): string {
   const script = loadInjectScript();
   return `// ==UserScript==
-// @name         Better Gateway - Auto Reconnect
-// @namespace    https://github.com/ThisIsJeron/openclaw-better-gateway
+// @name         DashboardClaw - Auto Reconnect
+// @namespace    https://github.com/marcelodarckferreira/dashboardclaw
 // @version      1.0.0
 // @description  Adds automatic WebSocket reconnection to OpenClaw Gateway UI
 // @match        ${gatewayUrl}/*
@@ -219,8 +225,8 @@ ${script}`;
 
 export default {
   // ID must match openclaw.plugin.json
-  id: "openclaw-better-gateway",
-  name: "Better Gateway",
+  id: "dashboardclaw",
+  name: "DashboardClaw",
 
   configSchema: {
     parse(raw: unknown): PluginConfig {
@@ -232,6 +238,12 @@ export default {
           config.maxReconnectAttempts ?? DEFAULT_CONFIG.maxReconnectAttempts,
         maxFileSize:
           config.maxFileSize ?? DEFAULT_CONFIG.maxFileSize,
+        corsOrigin:
+          config.corsOrigin ?? DEFAULT_CONFIG.corsOrigin,
+        maxUploadSize:
+          config.maxUploadSize ?? DEFAULT_CONFIG.maxUploadSize,
+        authToken:
+          config.authToken ?? DEFAULT_CONFIG.authToken,
       };
     },
     uiHints: {
@@ -246,6 +258,21 @@ export default {
       maxFileSize: {
         label: "Max File Size (bytes)",
         placeholder: "10485760",
+        advanced: true,
+      },
+      corsOrigin: {
+        label: "CORS Origin",
+        placeholder: "https://my-gateway.example.com",
+        advanced: true,
+      },
+      maxUploadSize: {
+        label: "Max Upload Size (bytes)",
+        placeholder: "52428800",
+        advanced: true,
+      },
+      authToken: {
+        label: "API Auth Token",
+        placeholder: "Optional Bearer token",
         advanced: true,
       },
     },
@@ -270,13 +297,15 @@ export default {
     }
     
     api.logger.info(
-      `Better Gateway loaded (reconnect: ${config.reconnectIntervalMs}ms, max: ${config.maxReconnectAttempts}, workspace: ${workspaceDir})`
+      `DashboardClaw loaded (reconnect: ${config.reconnectIntervalMs}ms, max: ${config.maxReconnectAttempts}, workspace: ${workspaceDir})`
     );
 
-    // Create file API handler
+    // Criar handler da File API com CORS e upload configuráveis
     const fileApiHandler = createFileApiHandler({
       workspaceDir,
       maxFileSize: config.maxFileSize,
+      corsOrigin: config.corsOrigin,
+      maxUploadSize: config.maxUploadSize,
     });
 
     // Create terminal manager (PTY + SSE/POST bridge)
@@ -285,9 +314,9 @@ export default {
     // Load gateway token once for auth validation
     const gatewayToken = loadGatewayToken();
 
-    // Register the main HTTP handler for /better-gateway/* routes
+    // Register the main HTTP handler for /dashboardclaw/* routes
     api.registerHttpRoute({
-      path: "/better-gateway",
+      path: "/dashboardclaw",
       match: "prefix",
       auth: "plugin",
       handler: async (req: IncomingMessage, res: ServerResponse): Promise<boolean | void> => {
@@ -295,7 +324,7 @@ export default {
         const pathname = url.pathname;
 
         // Auth check: accept token from Authorization header, ?token= query param, or session cookie
-        // Note: Control UI generates plugin auth URLs as /better-gateway/token?=TOKEN (empty key)
+        // Note: Control UI generates plugin auth URLs as /dashboardclaw/token?=TOKEN (empty key)
         // so we check both ?token=VALUE and ?=VALUE formats
         if (gatewayToken) {
           const tokenFromQuery = url.searchParams.get("token") ?? url.searchParams.get("");
@@ -321,7 +350,7 @@ export default {
             url.searchParams.delete("token");
             const cleanUrl = url.pathname + (url.searchParams.toString() ? `?${url.searchParams.toString()}` : "");
             res.writeHead(302, {
-              "Set-Cookie": `bg_auth=${gatewayToken}; Path=/better-gateway; HttpOnly; SameSite=Strict; Max-Age=31536000`,
+              "Set-Cookie": `bg_auth=${gatewayToken}; Path=/dashboardclaw; HttpOnly; SameSite=Strict; Max-Age=31536000`,
               "Location": cleanUrl,
             });
             res.end();
@@ -333,13 +362,13 @@ export default {
         const gatewayHost = `http://${hostHeader}`;
 
         // Handle file API routes FIRST (before proxy catches them)
-        if (pathname.startsWith("/better-gateway/api/files")) {
+        if (pathname.startsWith("/dashboardclaw/api/files")) {
           const handled = await fileApiHandler(req, res, pathname);
           if (handled) return true;
         }
 
         // Serve the IDE page
-        if (pathname === "/better-gateway/ide") {
+        if (pathname === "/dashboardclaw/ide") {
           const html = generateIdePage({ theme: "vs-dark" });
           res.writeHead(200, {
             "Content-Type": "text/html",
@@ -354,7 +383,7 @@ export default {
         }
 
         // Serve the terminal page (exact match only)
-        if (pathname === "/better-gateway/terminal") {
+        if (pathname === "/dashboardclaw/terminal") {
           const html = generateTerminalPage();
           res.writeHead(200, {
             "Content-Type": "text/html",
@@ -369,14 +398,14 @@ export default {
         }
 
         // Terminal API sub-routes: /stream, /input, /resize
-        if (pathname.startsWith("/better-gateway/terminal/")) {
-          const subpath = pathname.slice("/better-gateway/terminal".length);
+        if (pathname.startsWith("/dashboardclaw/terminal/")) {
+          const subpath = pathname.slice("/dashboardclaw/terminal".length);
           const handled = await terminalManager.handleRequest(req, res, subpath);
           if (handled) return true;
         }
 
         // Serve the inject script
-        if (pathname === "/better-gateway/inject.js") {
+        if (pathname === "/dashboardclaw/inject.js") {
           const script = loadInjectScript();
           const configuredScript = `${generateConfigScript(config)}\n${script}`;
 
@@ -391,20 +420,20 @@ export default {
         }
 
         // Serve userscript download
-        if (pathname === "/better-gateway/userscript.user.js") {
+        if (pathname === "/dashboardclaw/userscript.user.js") {
           const userscript = generateUserscript(config, gatewayHost);
           res.writeHead(200, {
             "Content-Type": "application/javascript",
             "Content-Length": Buffer.byteLength(userscript),
-            "Content-Disposition": "attachment; filename=better-gateway.user.js",
+            "Content-Disposition": "attachment; filename=dashboardclaw.user.js",
           });
           res.end(userscript);
           api.logger.debug("Served userscript");
           return true;
         }
 
-        // Serve landing/help page at /better-gateway/help
-        if (pathname === "/better-gateway/help") {
+        // Serve landing/help page at /dashboardclaw/help
+        if (pathname === "/dashboardclaw/help") {
           const html = generateLandingPage(config, gatewayHost);
           res.writeHead(200, {
             "Content-Type": "text/html",
@@ -415,10 +444,10 @@ export default {
           return true;
         }
 
-        // Enhanced gateway UI - proxy ALL /better-gateway/* paths to internal gateway
-        // Strip /better-gateway prefix and proxy the rest
+        // Enhanced gateway UI - proxy ALL /dashboardclaw/* paths to internal gateway
+        // Strip /dashboardclaw prefix and proxy the rest
         const internalPort = 18789;
-        let targetPath = pathname.replace(/^\/better-gateway/, "") || "/";
+        let targetPath = pathname.replace(/^\/dashboardclaw/, "") || "/";
 
         // Extract ?token= query param and inject as Authorization header (strip from forwarded URL)
         const proxyHeaders: Record<string, string> = {
