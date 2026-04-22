@@ -1,5 +1,9 @@
 node_modules/
 dist/
+client/dist/
 *.log
 *.db
+dashboardclaw.db
+dashboardclaw.db-shm
+dashboardclaw.db-wal
 .DS_Store
