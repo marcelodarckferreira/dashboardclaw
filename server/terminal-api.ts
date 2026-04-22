@@ -328,23 +328,25 @@ export function createTerminalManager(
     const existingSid = reqUrl.searchParams.get("sid");
 
     if (existingSid) {
+      const session = sessions.get(existingSid);
+      if (!session) {
+        res.writeHead(404, { "Content-Type": "application/json" });
+        res.end(JSON.stringify({ error: `Session ${existingSid} not found` }));
+        return;
+      }
+
+      // Evict any existing SSE connection before taking over — prevents dangling TCP + timer
+      if (session.res && !session.res.destroyed) {
+        if (session.keepaliveTimer) clearInterval(session.keepaliveTimer);
+        try { session.res.end(); } catch { /* already closed */ }
+      }
+
       res.writeHead(200, {
         "Content-Type": "text/event-stream",
         "Cache-Control": "no-cache",
         Connection: "keep-alive",
         "X-Accel-Buffering": "no",
       });
-
-      const session = sessions.get(existingSid);
-      if (!session) {
-        sseEvent(
-          res,
-          JSON.stringify({ error: `Session ${existingSid} not found` }),
-          "error",
-        );
-        res.end();
-        return;
-      }
 
       session.res = res;
       sseEvent(res, JSON.stringify({ sid: existingSid }), "session");
