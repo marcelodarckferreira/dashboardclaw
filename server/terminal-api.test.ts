@@ -50,6 +50,9 @@ describe("DELETE /api/terminal/sessions/:sid", () => {
   });
 });
 
+// The two tests below are mutually exclusive per process: _ptyPromise is a
+// module-level singleton, so isAvailable() always resolves to the same value.
+// Exactly one of the two tests will execute; the other skips via its guard.
 describe("POST /api/terminal/spawn", () => {
   it("returns sid and pid when node-pty is available", async () => {
     const { app, manager } = makeApp();
@@ -102,15 +105,28 @@ describe("GET /api/terminal/sessions after spawn", () => {
       .post("/api/terminal/spawn")
       .send({ name: "Listed Session" });
     expect(spawnRes.status).toBe(200);
-    const { sid } = spawnRes.body as { sid: string };
+    const { sid, pid } = spawnRes.body as { sid: string; pid: number };
 
     const listRes = await request(app).get("/api/terminal/sessions");
     expect(listRes.status).toBe(200);
-    const found = (listRes.body as Array<{ sid: string; name: string }>).find(
-      (s) => s.sid === sid,
-    );
+    const found = (
+      listRes.body as Array<{
+        sid: string;
+        name: string;
+        command: string;
+        pid: number;
+        startedAt: number;
+        connected: boolean;
+      }>
+    ).find((s) => s.sid === sid);
     expect(found).toBeDefined();
     expect(found!.name).toBe("Listed Session");
+    expect(found!.pid).toBe(pid);
+    expect(typeof found!.startedAt).toBe("number");
+    expect(typeof found!.command).toBe("string");
+    expect(found!.command.length).toBeGreaterThan(0);
+    // No SSE consumer attached after plain spawn — connected must be false
+    expect(found!.connected).toBe(false);
 
     // Clean up
     await request(app).delete(`/api/terminal/sessions/${sid}`);
