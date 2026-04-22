@@ -87,5 +87,5 @@ export function closeDb(db: InstanceType<typeof Database>): void {
       break;
     }
   }
-  db.close();
+  if (db.open) db.close();
 }
