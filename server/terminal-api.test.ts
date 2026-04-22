@@ -119,7 +119,10 @@ describe("GET /api/terminal/sessions after spawn", () => {
   it("removes session from list after kill", async () => {
     const { app, manager } = makeApp();
     const available = await manager.isAvailable();
-    if (!available) return;
+    if (!available) {
+      console.warn("node-pty not available — skipping kill+list test");
+      return;
+    }
 
     const spawnRes = await request(app)
       .post("/api/terminal/spawn")
