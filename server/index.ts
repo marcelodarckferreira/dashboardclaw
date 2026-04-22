@@ -4,6 +4,11 @@ import { createServer } from "node:http";
 import { resolve, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 import { existsSync } from "node:fs";
+import { initDb } from "./db.js";
+import { createGatewaysApi } from "./gateways-api.js";
+import { createChannelsApi } from "./channels-api.js";
+import { createAgentSessionsApi } from "./agent-sessions-api.js";
+import { createChatApi } from "./chat-api.js";
 import { createFileApiHandler, DEFAULT_MAX_FILE_SIZE } from "./file-api.js";
 import { createTerminalManager } from "./terminal-api.js";
 
@@ -14,89 +19,77 @@ const app = express();
 const server = createServer(app);
 const port = process.env.PORT || 3000;
 
-// Configuração Básica de CORS para permitir que o Frontend (Vite) conecte
-app.use(cors({
-  origin: "*", // Em produção, restrinja para a URL do frontend
-  methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
-  allowedHeaders: ["Content-Type", "Authorization"]
-}));
+app.use(cors({ origin: "*", methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"] }));
+app.use(express.json());
 
-// Servir os arquivos estáticos do Dashboard (Nível 1)
-app.use(express.static(resolve(__dirname, "../client")));
+// Workspace
+let workspaceDir = process.env.WORKSPACE_DIR;
+if (!workspaceDir) {
+  const cwdWorkspace = resolve(process.cwd(), "workspace");
+  workspaceDir = existsSync(cwdWorkspace) ? cwdWorkspace : process.cwd();
+}
 
-// Logger mockado já que não temos mais o logger do PluginApi
 const logger = {
   info: (msg: string) => console.log(`[INFO] ${msg}`),
   warn: (msg: string) => console.warn(`[WARN] ${msg}`),
   error: (msg: string) => console.error(`[ERROR] ${msg}`),
-  debug: (msg: string) => console.debug(`[DEBUG] ${msg}`)
+  debug: (msg: string) => console.debug(`[DEBUG] ${msg}`),
 };
 
-// Resolução do Diretório de Workspace
-let workspaceDir = process.env.WORKSPACE_DIR;
-if (!workspaceDir) {
-  const cwdWorkspace = resolve(process.cwd(), "workspace");
-  if (existsSync(cwdWorkspace)) {
-    workspaceDir = cwdWorkspace;
-  } else {
-    workspaceDir = process.cwd();
-  }
-}
+// SQLite
+const dbPath = resolve(process.cwd(), "dashboardclaw.db");
+const db = initDb(dbPath);
+logger.info(`Database: ${dbPath}`);
 
-logger.info(`Starting Dashboard Server...`);
-logger.info(`Workspace Directory: ${workspaceDir}`);
+// API routes
+app.use("/api/gateways", createGatewaysApi(db));
+app.use("/api/channels", createChannelsApi(db));
+app.use("/api/agent-sessions", createAgentSessionsApi(db));
+app.use("/api/chat", createChatApi(db));
 
-// Middleware para validar o Gateway Token (enviado via header Authorization)
-const authMiddleware = (req: express.Request, res: express.Response, next: express.NextFunction) => {
-  // Neste novo modelo, o próprio Dashboard armazena o token e o envia.
-  // O servidor NodeJS repassa o token para o OpenClaw, mas para proteger os arquivos locais:
-  const clientToken = req.headers.authorization?.replace("Bearer ", "");
-  
-  // Se você quiser proteger a FileAPI/Terminal local com uma senha local, pode validar aqui.
-  // Por enquanto, aceitamos a conexão local. O proxy para o OpenClaw fará a auth de verdade.
-  next();
-};
-
-// 1. Inicializar File API
+// File API
 const fileApiHandler = createFileApiHandler({
   workspaceDir,
   maxFileSize: DEFAULT_MAX_FILE_SIZE,
   corsOrigin: "*",
-  maxUploadSize: 50 * 1024 * 1024 // 50MB
+  maxUploadSize: 50 * 1024 * 1024,
 });
 
-// Converter o handler antigo do HTTP nativo para Express middleware
-app.use("/api/files", authMiddleware, async (req, res) => {
-  // O handler antigo espera req.url contendo /dashboardclaw/api/files/...
-  // Vamos reescrever a URL para ele entender
+app.use("/api/files", async (req, res) => {
   const originalUrl = req.url;
   req.url = `/dashboardclaw/api/files${originalUrl === "/" ? "" : originalUrl}`;
-  
   const handled = await fileApiHandler(req, res, req.url.split("?")[0]);
-  if (!handled && !res.headersSent) {
-    res.status(404).json({ error: "File API route not found" });
-  }
+  if (!handled && !res.headersSent) res.status(404).json({ error: "Not found" });
 });
 
-// 2. Inicializar Terminal API (PTY)
+// Terminal API
 const terminalManager = createTerminalManager(logger, workspaceDir);
-
-app.use("/api/terminal", authMiddleware, async (req, res) => {
-  const originalUrl = req.url; // ex: /stream, /input, /resize
-  const subpath = originalUrl.split("?")[0];
-  
+app.use("/api/terminal", async (req, res) => {
+  const subpath = req.url.split("?")[0];
   const handled = await terminalManager.handleRequest(req, res, subpath);
-  if (!handled && !res.headersSent) {
-    res.status(404).json({ error: "Terminal API route not found" });
+  if (!handled && !res.headersSent) res.status(404).json({ error: "Not found" });
+});
+
+// Static frontend — prod: client/dist/, dev: client/
+const clientDist = resolve(__dirname, "../dist/client");
+const clientDev = resolve(__dirname, "../client");
+const staticDir = existsSync(clientDist) ? clientDist : clientDev;
+app.use(express.static(staticDir));
+
+// SPA fallback
+app.get("*", (_req, res) => {
+  const indexFile = resolve(staticDir, "index.html");
+  if (existsSync(indexFile)) {
+    res.sendFile(indexFile);
+  } else {
+    res.status(404).send("Frontend not built. Run: npm run client:build");
   }
 });
 
-// 3. (Futuro) Proxy para a API real do OpenClaw
-// O frontend enviará requisições para /api/openclaw/... e nós faremos o forward com o token.
-
-// Start server
 server.listen(port, () => {
-  logger.info(`🚀 Standalone Backend rodando na porta ${port}`);
-  logger.info(`-> File API: http://localhost:${port}/api/files`);
+  logger.info(`Server running on port ${port}`);
+  logger.info(`-> Gateways API: http://localhost:${port}/api/gateways`);
+  logger.info(`-> File API:     http://localhost:${port}/api/files`);
   logger.info(`-> Terminal API: http://localhost:${port}/api/terminal`);
+  logger.info(`-> Static:       ${staticDir}`);
 });
