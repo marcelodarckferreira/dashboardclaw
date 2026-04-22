@@ -58,7 +58,7 @@ Correção no módulo `terminal.js` (ver Seção Frontend).
 ```
 DashboardClaw
 ├── server/          ← Node.js + Express (TypeScript, ESM)
-│   ├── db.ts        ← SQLite via better-sqlite3, schema completo
+│   ├── db.ts        ← SQLite via claw-sqlite3, schema completo
 │   ├── gateways-api.ts    ← CRUD gateways + poll de status
 │   ├── channels-api.ts    ← stub (rotas declaradas, sem lógica)
 │   ├── agent-sessions-api.ts ← stub
@@ -84,7 +84,7 @@ DashboardClaw
 ## Schema SQLite
 
 Arquivo: `server/db.ts`  
-Biblioteca: `better-sqlite3` *(ver nota abaixo sobre alternativas sem módulos nativos)*  
+Biblioteca: `claw-sqlite3` *(ver nota abaixo sobre alternativas sem módulos nativos)*  
 Todas as tabelas criadas com `CREATE TABLE IF NOT EXISTS` na inicialização.
 
 ### Tabelas Core (implementadas)
@@ -311,11 +311,11 @@ Aparece quando nenhum gateway está ativo. Design glassmorphism consistente com 
 
 | Pacote | Tipo | Motivo |
 |--------|------|--------|
-| `better-sqlite3` | dependency | SQLite síncrono para Express — requer compilação nativa |
-| `@types/better-sqlite3` | devDependency | Tipos TypeScript |
+| `claw-sqlite3` | dependency | SQLite síncrono para Express — requer compilação nativa |
+| `@types/claw-sqlite3` | devDependency | Tipos TypeScript |
 | `vite` | devDependency | Bundler frontend |
 
-> **Nota SQLite:** `better-sqlite3` requer compilação nativa (como `node-pty`). Se o projeto voltar a rodar como plugin dentro do OpenClaw, substituir por `sql.js` (WebAssembly, zero dependências nativas). A decisão final fica para o momento da implementação.
+> **Nota SQLite:** `claw-sqlite3` requer compilação nativa (como `node-pty`). Se o projeto voltar a rodar como plugin dentro do OpenClaw, substituir por `sql.js` (WebAssembly, zero dependências nativas). A decisão final fica para o momento da implementação.
 
 ---
 

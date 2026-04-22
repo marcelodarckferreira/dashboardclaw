@@ -1,0 +1,22 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(git add *)",
+      "Bash(git commit -m ' *)",
+      "WebSearch",
+      "WebFetch(domain:docs.openclaw.ai)",
+      "WebFetch(domain:github.com)",
+      "WebFetch(domain:blink.new)",
+      "Bash(npx tsc *)",
+      "Bash(npm install *)",
+      "Bash(git commit *)",
+      "Bash(npm test *)",
+      "Bash(node -e \"const db = require\\('better-sqlite3'\\)\\(':memory:'\\); db.pragma\\('journal_mode = WAL'\\); console.log\\('WAL pragma:', db.pragma\\('journal_mode'\\)\\); db.pragma\\('foreign_keys = ON'\\); console.log\\('Foreign keys:', db.pragma\\('foreign_keys'\\)\\);\")",
+      "Bash(node)",
+      "Bash(node -e \"const { initDb, closeDb } = require\\('./server/db.js'\\); console.log\\('Exports:'\\); console.log\\('- initDb:', typeof initDb\\); console.log\\('- closeDb:', typeof closeDb\\); console.log\\('- Database type exported'\\); const db = initDb\\(':memory:'\\); console.log\\('initDb returns:', typeof db\\); closeDb\\(db\\);\")",
+      "Bash(git rm *)",
+      "Bash(grep -E \"\\\\.\\(js|html|css\\)$\")",
+      "Bash(npm run *)"
+    ]
+  }
+}
