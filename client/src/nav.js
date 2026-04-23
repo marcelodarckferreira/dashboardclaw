@@ -1,11 +1,11 @@
-import { initTerminal } from "./terminal.js";
+import { initTerminalManager } from "./terminal-manager.js";
 import { initGateways } from "./gateways.js";
 import { initChannels } from "./channels.js";
 import { initChat } from "./chat.js";
 import { initAgentSessions } from "./agent-sessions.js";
 
 const VIEW_INITS = {
-  terminal: initTerminal,
+  terminal: initTerminalManager,
   gateways: initGateways,
   channels: initChannels,
   chat: initChat,
