@@ -11,6 +11,7 @@ import { createAgentSessionsApi } from "./agent-sessions-api.js";
 import { createChatApi } from "./chat-api.js";
 import { createFileApiHandler, DEFAULT_MAX_FILE_SIZE } from "./file-api.js";
 import { createTerminalManager } from "./terminal-api.js";
+import { requireGatewayAuth } from "./auth-middleware.js";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
@@ -41,11 +42,15 @@ const dbPath = resolve(process.cwd(), "dashboardclaw.db");
 const db = initDb(dbPath);
 logger.info(`Database: ${dbPath}`);
 
-// API routes
+const auth = requireGatewayAuth(db);
+
+// API routes — gateways is public (bootstrap: user selects gateway before auth)
 app.use("/api/gateways", createGatewaysApi(db));
-app.use("/api/channels", createChannelsApi(db));
-app.use("/api/agent-sessions", createAgentSessionsApi(db));
-app.use("/api/chat", createChatApi(db));
+
+// All other API routes require a valid X-Gateway-Id
+app.use("/api/channels", auth, createChannelsApi(db));
+app.use("/api/agent-sessions", auth, createAgentSessionsApi(db));
+app.use("/api/chat", auth, createChatApi(db));
 
 // File API
 const fileApiHandler = createFileApiHandler({
@@ -55,7 +60,7 @@ const fileApiHandler = createFileApiHandler({
   maxUploadSize: 50 * 1024 * 1024,
 });
 
-app.use("/api/files", async (req, res) => {
+app.use("/api/files", auth, async (req, res) => {
   const originalUrl = req.url;
   req.url = `/dashboardclaw/api/files${originalUrl === "/" ? "" : originalUrl}`;
   const handled = await fileApiHandler(req, res, req.url.split("?")[0]);
@@ -64,7 +69,7 @@ app.use("/api/files", async (req, res) => {
 
 // Terminal API
 const terminalManager = createTerminalManager(logger, workspaceDir);
-app.use("/api/terminal", async (req, res) => {
+app.use("/api/terminal", auth, async (req, res) => {
   const subpath = req.url.split("?")[0];
   const handled = await terminalManager.handleRequest(req, res, subpath);
   if (!handled && !res.headersSent) res.status(404).json({ error: "Not found" });

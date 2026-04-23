@@ -14,6 +14,7 @@
 import type { IncomingMessage, ServerResponse } from "node:http";
 import { createRequire } from "node:module";
 import { randomBytes } from "node:crypto";
+import { resolveWorkspacePath } from "./path-utils.js";
 
 // ---------------------------------------------------------------------------
 // Minimal interfaces — fully self-contained, no external @types needed
@@ -255,7 +256,9 @@ export function createTerminalManager(
       process.env.SHELL ||
       (process.platform === "win32" ? "powershell.exe" : "/bin/bash");
     const args = parsed.command ? (parsed.args ?? []) : [];
-    const cwd = parsed.cwd || workspaceDir;
+    const cwd = parsed.cwd
+      ? (resolveWorkspacePath(workspaceDir, parsed.cwd) ?? workspaceDir)
+      : workspaceDir;
     const name = parsed.name || shell;
 
     let proc: IPty;

@@ -1,6 +1,7 @@
 import { IncomingMessage, ServerResponse } from "node:http";
 import { readdir, readFile, writeFile, unlink, stat, mkdir } from "node:fs/promises";
-import { join, relative, resolve, dirname, basename, isAbsolute, extname } from "node:path";
+import { join, relative, resolve, dirname, basename, extname } from "node:path";
+import { resolveWorkspacePath } from "./path-utils.js";
 
 interface FileEntry {
   name: string;
@@ -203,58 +204,6 @@ async function readRawBody(
   });
 }
 
-/**
- * Resolve a requested path to a path inside the workspace.
- * Accepts:
- * - workspace-relative paths (e.g. "projects/foo")
- * - paths prefixed with "workspace/" (e.g. "workspace/projects/foo")
- * - absolute paths inside workspaceDir (e.g. "/root/.openclaw/workspace/projects/foo")
- */
-function resolveWorkspacePath(workspaceDir: string, requestedPath: string): string | null {
-  if (requestedPath.includes("\0")) {
-    return null;
-  }
-
-  let normalized = requestedPath.replace(/\\/g, "/").trim();
-
-  if (!normalized || normalized === "/" || normalized === ".") {
-    normalized = ".";
-  }
-
-  if (isAbsolute(normalized)) {
-    const abs = resolve(normalized);
-    const rel = relative(workspaceDir, abs);
-    if (!rel || rel === ".") {
-      return workspaceDir;
-    }
-    if (rel.startsWith("..") || isAbsolute(rel)) {
-      return null;
-    }
-    return abs;
-  }
-
-  normalized = normalized.replace(/^\/+/, "").replace(/\/+$/, "");
-
-  if (normalized === "workspace" || normalized.startsWith("workspace/")) {
-    normalized = normalized.slice("workspace".length).replace(/^\/+/, "");
-  }
-
-  if (!normalized || normalized === ".") {
-    normalized = ".";
-  }
-
-  const resolved = resolve(workspaceDir, normalized);
-  const rel = relative(workspaceDir, resolved);
-  if (rel.startsWith("..") || isAbsolute(rel)) {
-    return null;
-  }
-
-  return resolved;
-}
-
-/**
- * Validates that a path is within the workspace (prevents directory traversal)
- */
 function isPathSafe(workspaceDir: string, requestedPath: string): boolean {
   return resolveWorkspacePath(workspaceDir, requestedPath) !== null;
 }
